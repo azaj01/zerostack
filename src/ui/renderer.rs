@@ -452,59 +452,100 @@ impl Renderer {
         let (cols, rows) = crossterm::terminal::size()?;
         let mut stdout = io::stdout();
 
-        let input_row = rows.saturating_sub(2);
         let status_row = rows.saturating_sub(1);
+
+        let lines: Vec<&str> = input_line.split('\n').collect();
+        let line_count = lines.len();
+
+        let last_line = rows.saturating_sub(2) as usize - 1;
+        let available_rows = last_line + 1; // rows from 0 to last_line
+        let need_scroll = line_count > available_rows;
+        let first_visible = if need_scroll {
+            line_count - available_rows
+        } else {
+            0
+        };
+
         let prompt = if is_running {
             self.spinner_tick = !self.spinner_tick;
             if self.spinner_tick { ". " } else { ": " }
         } else {
             "> "
         };
+        let prompt_width = prompt.chars().count();
 
-        stdout.execute(MoveTo(0, input_row))?;
-        write!(stdout, "{}", " ".repeat(cols as usize))?;
-        stdout.execute(MoveTo(0, input_row))?;
-        write!(stdout, "{}", SetForegroundColor(self.color(Color::Cyan)))?;
-        write!(stdout, "{}", prompt)?;
-        write!(stdout, "{}", ResetColor)?;
-        let visible_width = cols.saturating_sub(2) as usize;
-        let input_len = input_line.len();
-
-        if cursor_pos < self.input_scroll_offset {
-            self.input_scroll_offset = cursor_pos;
-        } else if cursor_pos >= self.input_scroll_offset + visible_width {
-            self.input_scroll_offset = cursor_pos - visible_width + 1;
+        // Clear input area
+        let visible_line_count = if need_scroll { available_rows } else { line_count };
+        for r in 0..visible_line_count {
+            let row = (rows.saturating_sub(2) - visible_line_count as u16 + 1) + r as u16;
+            let _ = stdout.execute(MoveTo(0, row));
+            let _ = write!(stdout, "{}", " ".repeat(cols as usize));
         }
-        let max_scroll = input_len.saturating_sub(visible_width);
-        self.input_scroll_offset = self.input_scroll_offset.min(max_scroll);
 
-        let visible: String = input_line
-            .chars()
-            .skip(self.input_scroll_offset)
-            .take(visible_width)
-            .collect();
-        write!(stdout, "{}", visible)?;
+        let (cursor_line, cursor_col) = crate::ui::input::cursor_to_line_col(input_line, cursor_pos);
 
-        stdout.execute(MoveTo(0, status_row))?;
-        write!(stdout, "{}", " ".repeat(cols as usize))?;
-        stdout.execute(MoveTo(0, status_row))?;
-        write!(
-            stdout,
-            "{}",
-            SetForegroundColor(self.color(Color::DarkGrey))
-        )?;
+        // Compute horizontal scroll for the cursor line
+        let visible_width = cols.saturating_sub(prompt_width as u16) as usize;
+        let cursor_line_text = lines.get(cursor_line).unwrap_or(&"");
+        let cursor_line_len = cursor_line_text.chars().count();
+        let mut h_scroll = 0usize;
+        if cursor_line_len > visible_width {
+            if cursor_col < self.input_scroll_offset {
+                self.input_scroll_offset = cursor_col;
+            } else if cursor_col >= self.input_scroll_offset + visible_width {
+                self.input_scroll_offset = cursor_col - visible_width + 1;
+            }
+            let max_h_scroll = cursor_line_len.saturating_sub(visible_width);
+            h_scroll = self.input_scroll_offset.min(max_h_scroll);
+        } else {
+            self.input_scroll_offset = 0;
+        }
+
+        for i in first_visible..line_count {
+            let render_row = (rows.saturating_sub(2) - visible_line_count as u16 + 1)
+                + (i - first_visible) as u16;
+            let _ = stdout.execute(MoveTo(0, render_row));
+
+            if i == first_visible {
+                let _ = write!(stdout, "{}", SetForegroundColor(self.color(Color::Cyan)));
+                let _ = write!(stdout, "{}", prompt);
+                let _ = write!(stdout, "{}", ResetColor);
+            } else {
+                let _ = write!(stdout, "{}", " ".repeat(prompt_width));
+            }
+
+            let line = lines[i];
+            let line_chars: Vec<char> = line.chars().collect();
+            let h_offset = if i == cursor_line { h_scroll } else { 0 };
+            let display: String = line_chars
+                .iter()
+                .skip(h_offset)
+                .take(visible_width)
+                .collect();
+            let _ = write!(stdout, "{}", display);
+        }
+
+        // Status line
+        let _ = stdout.execute(MoveTo(0, status_row));
+        let _ = write!(stdout, "{}", " ".repeat(cols as usize));
+        let _ = stdout.execute(MoveTo(0, status_row));
+        let _ = write!(stdout, "{}", SetForegroundColor(self.color(Color::DarkGrey)));
         let status_display = if self.scroll_offset > 0 {
             format!("-- SCROLL -- {}", status)
         } else {
             status.to_string()
         };
         let truncated: String = status_display.chars().take(cols as usize).collect();
-        write!(stdout, "{}", truncated)?;
-        write!(stdout, "{}", ResetColor)?;
+        let _ = write!(stdout, "{}", truncated);
+        let _ = write!(stdout, "{}", ResetColor);
 
-        let cursor_x = (2 + cursor_pos.saturating_sub(self.input_scroll_offset)) as u16;
-        stdout.execute(MoveTo(cursor_x, input_row))?;
-        stdout.flush()?;
+        // Cursor
+        let cursor_render_idx = cursor_line.saturating_sub(first_visible);
+        let cursor_row = (rows.saturating_sub(2) - visible_line_count as u16 + 1)
+            + cursor_render_idx as u16;
+        let cursor_x = (prompt_width + cursor_col.saturating_sub(h_scroll)) as u16;
+        let _ = stdout.execute(MoveTo(cursor_x, cursor_row));
+        let _ = stdout.flush();
         Ok(())
     }
 }

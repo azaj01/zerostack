@@ -1,3 +1,4 @@
+mod cmd_picker;
 mod events;
 pub(crate) mod input;
 mod markdown;
@@ -117,6 +118,7 @@ pub async fn run_interactive(
     renderer.set_monochrome(cli.no_color);
     let mut input = InputEditor::new();
     input.set_monochrome(cli.no_color);
+    input.set_prompt_names(context.prompts.keys().cloned().collect());
     let mut is_running = false;
     let mut agent_rx: Option<mpsc::Receiver<AgentEvent>> = None;
     let mut agent_line_started = false;
@@ -392,7 +394,7 @@ pub async fn run_interactive(
                             _ => {}
                         }
 
-                        if input.picker.as_ref().is_some_and(|p| p.active)
+                        if input.picker.as_ref().is_some_and(|p| p.active())
                             && input.handle_picker_key(key) {
                                 renderer.render_viewport()?;
                                 renderer.draw_bottom(
