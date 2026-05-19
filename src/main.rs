@@ -91,8 +91,14 @@ async fn main() -> anyhow::Result<()> {
         context.current_prompt_name = Some(default_prompt.to_string());
     }
 
-    let provider = cli.resolve_provider(&cfg);
-    let model = cli.resolve_model(&cfg);
+    let mut provider = cli.resolve_provider(&cfg);
+    let mut model = cli.resolve_model(&cfg);
+
+    // --quick-model overrides provider + model
+    if let Some(qm) = cli.resolve_quick_model(&cfg) {
+        provider = CompactString::new(&qm.provider);
+        model = CompactString::new(&qm.model);
+    }
 
     let mut session = session::Session::new(&provider, &model, cfg.resolve_context_window());
 

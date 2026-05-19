@@ -12,6 +12,12 @@ use crate::extras::mcp::config::McpServerConfig;
 use crate::extras::acp::config::AcpServerConfig;
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct QuickModelConfig {
+    pub provider: String,
+    pub model: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct CustomProviderConfig {
     pub provider_type: String,
     pub base_url: String,
@@ -44,6 +50,7 @@ pub struct Config {
     pub shell: Option<String>,
     pub editor: Option<String>,
     pub api_keys: Option<std::collections::HashMap<String, String>>,
+    pub quick_models: Option<std::collections::HashMap<String, QuickModelConfig>>,
     #[cfg(feature = "mcp")]
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
 
@@ -79,6 +86,45 @@ impl Config {
 
 pub fn config_file_path() -> PathBuf {
     storage::config_path().join("config.json")
+}
+
+pub fn quick_models_map(cfg: &Config) -> HashMap<String, QuickModelConfig> {
+    cfg.quick_models.clone().unwrap_or_default()
+}
+
+pub fn save_quick_model(name: &str, provider: &str, model: &str) -> std::io::Result<()> {
+    let path = config_file_path();
+    let mut value: serde_json::Value = if path.exists() {
+        let content = std::fs::read_to_string(&path).unwrap_or_default();
+        serde_json::from_str(&content).unwrap_or_default()
+    } else {
+        serde_json::json!({})
+    };
+
+    let entry = value
+        .as_object_mut()
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "config is not an object"))?;
+
+    let quick_models = entry
+        .entry("quick_models")
+        .or_insert_with(|| serde_json::json!({}))
+        .as_object_mut()
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "quick_models is not an object"))?;
+
+    quick_models.insert(
+        name.to_string(),
+        serde_json::json!({
+            "provider": provider,
+            "model": model,
+        }),
+    );
+
+    let parent = path.parent().ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid config path")
+    })?;
+    std::fs::create_dir_all(parent)?;
+    std::fs::write(&path, serde_json::to_string_pretty(&value)?)?;
+    Ok(())
 }
 
 pub fn load() -> Config {

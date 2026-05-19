@@ -142,6 +142,12 @@ pub async fn run_interactive(
     if let Some(editor) = &cfg.editor {
         input.set_editor(editor.clone());
     }
+    input.set_quick_model_names(
+        cfg.quick_models
+            .as_ref()
+            .map(|m| m.keys().cloned().collect())
+            .unwrap_or_default(),
+    );
     input.load_global_history();
     let mut is_running = false;
     let mut agent_rx: Option<mpsc::Receiver<AgentEvent>> = None;
