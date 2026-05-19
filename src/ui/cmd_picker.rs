@@ -9,6 +9,7 @@ use super::resolve_color;
 
 const COMMANDS: &[&str] = &[
     "/model",
+    "/provider",
     "/sessions",
     "/reasoning",
     "/thinking",

@@ -49,7 +49,7 @@ pub fn undo_last(session: &mut Session) -> usize {
 pub async fn handle_compress(
     instructions: Option<&str>,
     agent: &mut AnyAgent,
-    client: &AnyClient,
+    client: &mut AnyClient,
     renderer: &mut Renderer,
     session: &mut Session,
     cli: &Cli,
@@ -139,7 +139,7 @@ pub async fn handle_compress(
 pub async fn handle_slash(
     text: &str,
     agent: &mut AnyAgent,
-    client: &AnyClient,
+    client: &mut AnyClient,
     renderer: &mut Renderer,
     session: &mut Session,
     cli: &Cli,
@@ -158,6 +158,47 @@ pub async fn handle_slash(
 ) -> anyhow::Result<()> {
     let parts: SmallVec<[&str; 3]> = text.trim().splitn(3, ' ').collect();
     match parts[0] {
+        "/provider" => {
+            if parts.len() < 2 {
+                renderer.write_line(&format!("current provider: {}", session.provider), C_AGENT)?;
+            } else {
+                let new_provider = parts[1].trim();
+                if crate::provider::parse_provider(new_provider).is_none()
+                    && !cfg.custom_providers_map().contains_key(new_provider)
+                {
+                    renderer.write_line(
+                        &format!("unknown provider: '{}'", new_provider),
+                        C_ERROR,
+                    )?;
+                    return Ok(());
+                }
+                *client = crate::provider::create_client(
+                    new_provider,
+                    cli.api_key.as_deref(),
+                    &cfg.custom_providers_map(),
+                    cfg.api_keys.as_ref(),
+                )?;
+                let model = client.completion_model(session.model.to_string());
+                *agent = crate::provider::build_agent(
+                    model,
+                    cli,
+                    cfg,
+                    context,
+                    permission.clone(),
+                    ask_tx.clone(),
+                    sandbox.clone(),
+                    *reasoning_enabled,
+                    #[cfg(feature = "mcp")]
+                    mcp_manager,
+                )
+                .await;
+                session.provider = CompactString::new(new_provider);
+                renderer.write_line(
+                    &format!("switched to provider: {}", new_provider),
+                    C_AGENT,
+                )?;
+            }
+        }
         "/model" => {
             if parts.len() < 2 {
                 renderer.write_line(&format!("current model: {}", session.model), C_AGENT)?;
@@ -820,6 +861,10 @@ pub async fn handle_slash(
         "/help" => {
             renderer.write_line("commands:", C_AGENT)?;
             renderer.write_line("  /model [name]          show or switch model", C_RESULT)?;
+            renderer.write_line(
+                "  /provider [name]       show or switch provider",
+                C_RESULT,
+            )?;
             renderer.write_line("  /sessions              list recent sessions", C_RESULT)?;
             renderer.write_line(
                 "  /sessions <id>         load a session (by ID prefix)",

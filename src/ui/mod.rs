@@ -120,7 +120,7 @@ fn refresh_display(
 
 #[allow(clippy::too_many_arguments)]
 pub async fn run_interactive(
-    client: AnyClient,
+    mut client: AnyClient,
     mut agent: AnyAgent,
     cli: &Cli,
     cfg: &Config,
@@ -375,7 +375,7 @@ pub async fn run_interactive(
                                     renderer.write_line(&format!("> {}", safe_line), Color::Green)?;
                                 }
                                 renderer.write_line("", Color::White)?;
-                                let result = handle_slash(&text, &mut agent, &client, &mut renderer, session, cli, cfg, context, &mut show_reasoning, &mut reasoning_enabled, &mut is_running, &mut input, &permission, &ask_tx, &mut todo_tools_enabled, &sandbox, #[cfg(feature = "loop")] &mut loop_state, #[cfg(feature = "mcp")] mcp_manager).await;
+                                let result = handle_slash(&text, &mut agent, &mut client, &mut renderer, session, cli, cfg, context, &mut show_reasoning, &mut reasoning_enabled, &mut is_running, &mut input, &permission, &ask_tx, &mut todo_tools_enabled, &sandbox, #[cfg(feature = "loop")] &mut loop_state, #[cfg(feature = "mcp")] mcp_manager).await;
                                 match result {
                                 Err(e) if e.to_string().starts_with("DEFER_COMPRESS:") => {
                                     let err_msg = e.to_string();
@@ -385,7 +385,7 @@ pub async fn run_interactive(
                                     });
                                         let compress_result = handle_compress(
                                             instructions.as_deref(),
-                                            &mut agent, &client, &mut renderer, session, cli, cfg, context,
+                                            &mut agent, &mut client, &mut renderer, session, cli, cfg, context,
                                             reasoning_enabled,
                                             &permission, &ask_tx, &sandbox,
                                             #[cfg(feature = "mcp")] mcp_manager,
@@ -642,7 +642,7 @@ pub async fn run_interactive(
                             renderer.write_line("auto-compacting...", Color::DarkGrey)?;
                             let compress_result = handle_compress(
                                 None,
-                                &mut agent, &client, &mut renderer, session, cli, cfg, context,
+                                &mut agent, &mut client, &mut renderer, session, cli, cfg, context,
                                 reasoning_enabled,
                                 &permission, &ask_tx, &sandbox,
                                 #[cfg(feature = "mcp")] mcp_manager,
