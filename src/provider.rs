@@ -220,7 +220,8 @@ pub fn create_client(
     let resolver = AuthResolver::new(config.kind)
         .with_cli_key(api_key)
         .with_env_override(config.api_key_env.as_deref())
-        .with_config_keys(config_api_keys);
+        .with_config_keys(config_api_keys)
+        .with_custom_provider_name(Some(provider_name));
     let key = resolver.resolve()?;
 
     match config.kind {

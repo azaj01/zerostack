@@ -23,13 +23,15 @@ impl ProviderKind {
     }
 }
 
-/// Resolver for API keys with priority: CLI arg > env var > config file
+/// Resolver for API keys with priority: CLI arg > env var > config file > custom provider name
 #[derive(Debug, Clone)]
 pub struct AuthResolver {
     pub provider_kind: ProviderKind,
     pub api_key_env_override: Option<String>,
     pub cli_key: Option<String>,
     pub config_api_keys: Option<HashMap<String, String>>,
+    /// Custom provider name (e.g., "local-vllm") for fallback key lookup
+    pub custom_provider_name: Option<String>,
 }
 
 impl AuthResolver {
@@ -39,6 +41,7 @@ impl AuthResolver {
             api_key_env_override: None,
             cli_key: None,
             config_api_keys: None,
+            custom_provider_name: None,
         }
     }
 
@@ -54,6 +57,11 @@ impl AuthResolver {
 
     pub fn with_config_keys(mut self, keys: Option<&HashMap<String, String>>) -> Self {
         self.config_api_keys = keys.cloned();
+        self
+    }
+
+    pub fn with_custom_provider_name(mut self, name: Option<&str>) -> Self {
+        self.custom_provider_name = name.filter(|s| !s.is_empty()).map(String::from);
         self
     }
 
@@ -80,15 +88,18 @@ impl AuthResolver {
             return Ok(key);
         }
 
-        // Priority 3: Config file
-        let slug = self.provider_slug();
-        if let Some(key) = self
-            .config_api_keys
-            .as_ref()
-            .and_then(|m| m.get(slug))
-            .filter(|k| !k.is_empty())
-        {
-            return Ok(key.clone());
+        // Priority 3: Config file (try provider slug first, then custom provider name)
+        if let Some(ref keys) = self.config_api_keys {
+            let slug = self.provider_slug();
+            if let Some(key) = keys.get(slug).filter(|k| !k.is_empty()) {
+                return Ok(key.clone());
+            }
+            // Fallback to custom provider name for custom providers
+            if let Some(ref custom_name) = self.custom_provider_name
+                && let Some(key) = keys.get(custom_name).filter(|k| !k.is_empty())
+            {
+                return Ok(key.clone());
+            }
         }
 
         // Ollama doesn't require an API key
@@ -97,8 +108,12 @@ impl AuthResolver {
         }
 
         anyhow::bail!(
-            "No API key found. Set the {} environment variable, add it to config.api_keys, or pass --api-key.",
-            env_var
+            "No API key found. Set the {} environment variable, add it to config.api_keys under '{}' or '{}', or pass --api-key.",
+            env_var,
+            self.provider_slug(),
+            self.custom_provider_name
+                .as_deref()
+                .unwrap_or("provider_name")
         )
     }
 

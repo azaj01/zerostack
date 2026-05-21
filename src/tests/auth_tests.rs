@@ -79,6 +79,20 @@ fn auth_resolver_falls_back_for_empty_cli_key() {
 }
 
 #[test]
+fn auth_resolver_falls_back_to_custom_provider_name() {
+    use std::collections::HashMap;
+    let mut keys = HashMap::new();
+    keys.insert("local-vllm".to_string(), "custom-provider-key".to_string());
+
+    let resolver = AuthResolver::new(ProviderKind::OpenAI)
+        .with_cli_key(None)
+        .with_config_keys(Some(&keys))
+        .with_custom_provider_name(Some("local-vllm"));
+    let result = resolver.resolve().unwrap();
+    assert_eq!(result, "custom-provider-key");
+}
+
+#[test]
 fn auth_resolver_ollama_returns_empty_key() {
     let resolver = AuthResolver::new(ProviderKind::Ollama)
         .with_cli_key(None)
