@@ -589,8 +589,16 @@ pub async fn run_interactive(
                                     );
                                 }
                             }
+                            refresh_display(&mut renderer, &input, session, is_running, loop_label.as_deref(), context.current_prompt_name.as_deref(), perm_mode().as_deref())?;
+                        } else if is_running {
+                            refresh_display(&mut renderer, &input, session, is_running, loop_label.as_deref(), context.current_prompt_name.as_deref(), perm_mode().as_deref())?;
+                        } else {
+                            let status = StatusLine::render(session, is_running, 0, loop_label.as_deref(), context.current_prompt_name.as_deref(), perm_mode().as_deref());
+                            renderer.draw_bottom(&input.buffer, input.cursor, &status, is_running)?;
+                            if let Some(ref picker) = input.picker {
+                                picker.draw()?;
+                            }
                         }
-                        refresh_display(&mut renderer, &input, session, is_running, loop_label.as_deref(), context.current_prompt_name.as_deref(), perm_mode().as_deref())?;
                     }
                 }
             }

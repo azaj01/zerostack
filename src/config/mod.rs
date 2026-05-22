@@ -22,6 +22,8 @@ pub struct CustomProviderConfig {
     pub provider_type: String,
     pub base_url: String,
     pub api_key_env: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub danger_accept_invalid_certs: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
