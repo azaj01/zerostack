@@ -5,6 +5,7 @@ use crossterm::ExecutableCommand;
 use crossterm::cursor::{Hide, MoveTo, Show};
 use crossterm::style::{Attribute, Color, ResetColor, SetAttribute, SetBackgroundColor, SetForegroundColor};
 use crossterm::terminal::{Clear, ClearType, ScrollUp};
+use smallvec::{smallvec, SmallVec};
 
 use super::markdown::word_wrap;
 use super::resolve_color;
@@ -176,7 +177,7 @@ impl Renderer {
         }
     }
 
-    fn wrap_line(&self, line: &str, max_width: usize) -> Vec<CompactString> {
+    fn wrap_line(&self, line: &str, max_width: usize) -> SmallVec<[CompactString; 4]> {
         word_wrap(line, max_width)
     }
 
@@ -271,7 +272,7 @@ impl Renderer {
             let wrapped = if text.chars().count() > max_width {
                 word_wrap(text, max_width)
             } else {
-                vec![text.clone()]
+                smallvec![text.clone()]
             };
 
             for chunk in &wrapped {
@@ -426,7 +427,7 @@ impl Renderer {
         if max_width == 0 {
             return Ok(());
         }
-        let parts: Vec<&str> = text.split('\n').collect();
+        let parts: SmallVec<[&str; 4]> = text.split('\n').collect();
         let last = parts.len() - 1;
         for (i, segment) in parts.iter().enumerate() {
             if i < last {
@@ -461,7 +462,7 @@ impl Renderer {
                     self.col = 0;
                 }
             } else if !segment.is_empty() {
-                let chars: Vec<char> = segment.chars().collect();
+                let chars: SmallVec<[char; 64]> = segment.chars().collect();
                 let mut idx = 0;
                 while idx < chars.len() {
                     let avail = max_width.saturating_sub(self.col as usize);
@@ -550,7 +551,7 @@ impl Renderer {
 
         let status_row = rows.saturating_sub(1);
 
-        let lines: Vec<&str> = input_line.split('\n').collect();
+        let lines: SmallVec<[&str; 4]> = input_line.split('\n').collect();
         let line_count = lines.len();
 
         let last_line = rows.saturating_sub(2) as usize - 1;
@@ -617,7 +618,7 @@ impl Renderer {
                 write!(stdout, "{}", " ".repeat(prompt_width))?;
             }
 
-            let line_chars: Vec<char> = line.chars().collect();
+            let line_chars: SmallVec<[char; 64]> = line.chars().collect();
             let h_offset = if i == cursor_line { h_scroll } else { 0 };
             let display: String = line_chars
                 .iter()

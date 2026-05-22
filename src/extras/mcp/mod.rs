@@ -4,6 +4,7 @@ pub mod tool;
 
 use std::collections::HashMap;
 
+use compact_str::CompactString;
 use tool::McpTool;
 
 use crate::permission::ask::AskSender;
@@ -17,7 +18,7 @@ impl McpClientManager {
     pub async fn connect_all(configs: &HashMap<String, config::McpServerConfig>) -> Self {
         let mut handles = Vec::new();
         for (name, cfg) in configs {
-            match client::McpClientHandle::connect(name.clone(), cfg).await {
+            match client::McpClientHandle::connect(CompactString::new(name.clone()), cfg).await {
                 Ok(handle) => {
                     tracing::info!("Connected to MCP server '{}'", name);
                     handles.push(handle);

@@ -1,18 +1,19 @@
 use compact_str::CompactString;
 use crossterm::style::Color;
 use pulldown_cmark::{Event, Tag, TagEnd};
+use smallvec::{smallvec, SmallVec};
 
 use super::renderer::LineEntry;
 
-pub(crate) fn word_wrap(text: &str, max_width: usize) -> Vec<CompactString> {
+pub(crate) fn word_wrap(text: &str, max_width: usize) -> SmallVec<[CompactString; 4]> {
     if text.is_empty() || max_width == 0 {
-        return vec![CompactString::from(text)];
+        return smallvec![CompactString::from(text)];
     }
-    let chars: Vec<char> = text.chars().collect();
+    let chars: SmallVec<[char; 64]> = text.chars().collect();
     if chars.len() <= max_width {
-        return vec![CompactString::from(text)];
+        return smallvec![CompactString::from(text)];
     }
-    let mut lines = Vec::new();
+    let mut lines: SmallVec<[CompactString; 4]> = SmallVec::new();
     let mut start = 0;
     while start < chars.len() {
         let end = (start + max_width).min(chars.len());

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use compact_str::CompactString;
 use rig::agent::Agent;
 use rig::client::CompletionClient;
 use rig::completion::{CompletionModel, Message};
@@ -44,7 +45,7 @@ pub fn parse_provider(name: &str) -> Option<ProviderKind> {
 pub struct ProviderInfo {
     pub kind: ProviderKind,
     pub base_url: Option<String>,
-    pub api_key_env: Option<String>,
+    pub api_key_env: Option<CompactString>,
     pub danger_accept_invalid_certs: bool,
 }
 
@@ -53,7 +54,7 @@ pub fn resolve_provider_info(
     custom_providers: &HashMap<String, CustomProviderConfig>,
 ) -> Option<ProviderInfo> {
     if let Some(custom) = custom_providers.get(name) {
-        let kind = parse_provider(&custom.provider_type)?;
+        let kind = parse_provider(custom.provider_type.as_str())?;
         return Some(ProviderInfo {
             kind,
             base_url: Some(custom.base_url.clone()),

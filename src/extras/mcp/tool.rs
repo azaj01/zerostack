@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::fmt;
 
+use compact_str::CompactString;
 use rig::completion::ToolDefinition;
 use rig::tool::{ToolDyn, ToolError};
 use rig::wasm_compat::WasmBoxedFuture;
@@ -12,7 +13,7 @@ use crate::permission::ask::AskSender;
 use crate::permission::checker::PermCheck;
 
 #[derive(Debug)]
-pub struct McpToolError(pub String);
+pub struct McpToolError(pub CompactString);
 
 impl fmt::Display for McpToolError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -23,7 +24,7 @@ impl fmt::Display for McpToolError {
 impl std::error::Error for McpToolError {}
 
 pub struct McpTool {
-    pub server_name: String,
+    pub server_name: CompactString,
     pub definition: rmcp::model::Tool,
     pub peer: Peer<RoleClient>,
     pub permission: Option<PermCheck>,
@@ -64,7 +65,7 @@ impl ToolDyn for McpTool {
             let perm_key = format!("mcp_tool:{server_name}:{tool_name}");
             check_perm(&permission, &ask_tx, "mcp_tool", &perm_key)
                 .await
-                .map_err(|e| ToolError::ToolCallError(Box::new(McpToolError(e.to_string()))))?;
+                .map_err(|e| ToolError::ToolCallError(Box::new(McpToolError(CompactString::new(e.to_string())))))?;
 
             let arguments: Option<JsonObject> = serde_json::from_str(&args).unwrap_or_default();
             let params = arguments
@@ -72,7 +73,7 @@ impl ToolDyn for McpTool {
                 .unwrap_or_else(|| CallToolRequestParams::new(tool_name.clone()));
 
             let result = peer.call_tool(params).await.map_err(|e| {
-                ToolError::ToolCallError(Box::new(McpToolError(format!("MCP tool error: {e}"))))
+                ToolError::ToolCallError(Box::new(McpToolError(CompactString::new(format!("MCP tool error: {e}")))))
             })?;
 
             if result.is_error.unwrap_or(false) {
@@ -90,7 +91,7 @@ impl ToolDyn for McpTool {
                 } else {
                     error_msg
                 };
-                return Err(ToolError::ToolCallError(Box::new(McpToolError(msg))));
+                return Err(ToolError::ToolCallError(Box::new(McpToolError(CompactString::new(msg)))));
             }
 
             let mut content = String::new();

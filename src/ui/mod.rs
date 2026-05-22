@@ -944,17 +944,17 @@ pub async fn run_interactive(
                 let _ = ask_req.reply.send(decision);
 
                 if let Some(pattern) = allow_pattern {
-                    session.permission_allowlist.push(PermissionAllowEntry {
-                        tool: ask_req.tool.clone(),
-                        pattern: pattern.clone(),
-                    });
-                    if !cli.no_session {
-                        let _ = crate::session::storage::save_session(session);
-                    }
                     renderer.write_line(
                         &format!("  allowed {} {} (saved to session)", ask_req.tool, pattern),
                         Color::Green,
                     )?;
+                    session.permission_allowlist.push(PermissionAllowEntry {
+                        tool: ask_req.tool.clone(),
+                        pattern: pattern.into(),
+                    });
+                    if !cli.no_session {
+                        let _ = crate::session::storage::save_session(session);
+                    }
                 }
 
                 refresh_display(&mut renderer, &input, session, is_running, loop_label.as_deref(), context.current_prompt_name.as_deref(), perm_mode().as_deref())?;

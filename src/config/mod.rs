@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use compact_str::CompactString;
 use serde::{Deserialize, Serialize};
 
 use crate::permission::PermissionConfig;
@@ -14,15 +15,15 @@ use crate::extras::acp::config::AcpServerConfig;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuickModelConfig {
-    pub provider: String,
-    pub model: String,
+    pub provider: CompactString,
+    pub model: CompactString,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CustomProviderConfig {
-    pub provider_type: String,
+    pub provider_type: CompactString,
     pub base_url: String,
-    pub api_key_env: Option<String>,
+    pub api_key_env: Option<CompactString>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub danger_accept_invalid_certs: Option<bool>,
 }
@@ -30,9 +31,9 @@ pub struct CustomProviderConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ColorsConfig {
-    pub chat_background: Option<String>,
-    pub input_background: Option<String>,
-    pub status_background: Option<String>,
+    pub chat_background: Option<CompactString>,
+    pub input_background: Option<CompactString>,
+    pub status_background: Option<CompactString>,
 }
 
 impl Default for ColorsConfig {
@@ -49,9 +50,9 @@ impl Default for ColorsConfig {
 #[serde(default)]
 pub struct Config {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub model: Option<String>,
+    pub model: Option<CompactString>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub provider: Option<String>,
+    pub provider: Option<CompactString>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_tokens: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -97,7 +98,7 @@ pub struct Config {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub show_tool_details: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub default_prompt: Option<String>,
+    pub default_prompt: Option<CompactString>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shell: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -202,8 +203,8 @@ pub fn save_quick_model(name: &str, provider: &str, model: &str) -> std::io::Res
     quick_models.insert(
         name.to_string(),
         QuickModelConfig {
-            provider: provider.to_string(),
-            model: model.to_string(),
+            provider: CompactString::new(provider),
+            model: CompactString::new(model),
         },
     );
 

@@ -1,3 +1,4 @@
+use compact_str::CompactString;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
@@ -6,7 +7,7 @@ pub type AskReceiver = mpsc::Receiver<AskRequest>;
 
 #[derive(Debug)]
 pub struct AskRequest {
-    pub tool: String,
+    pub tool: CompactString,
     pub input: String,
     pub reply: oneshot::Sender<UserDecision>,
 }

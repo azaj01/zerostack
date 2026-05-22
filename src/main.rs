@@ -14,7 +14,6 @@ mod ui;
 mod tests;
 
 use clap::Parser;
-use compact_str::CompactString;
 use session::MessageRole;
 
 use crate::permission::ask::AskSender;
@@ -93,8 +92,8 @@ async fn main() -> anyhow::Result<()> {
 
     // --quick-model overrides provider + model
     if let Some(qm) = cli.resolve_quick_model(&cfg) {
-        provider = CompactString::new(&qm.provider);
-        model = CompactString::new(&qm.model);
+        provider = qm.provider.clone();
+        model = qm.model.clone();
     }
 
     let mut session = session::Session::new(&provider, &model, cfg.resolve_context_window());
@@ -171,7 +170,7 @@ async fn main() -> anyhow::Result<()> {
         let allowlist: Vec<(String, String)> = session
             .permission_allowlist
             .iter()
-            .map(|e| (e.tool.clone(), e.pattern.clone()))
+            .map(|e| (e.tool.to_string(), e.pattern.to_string()))
             .collect();
         perm.lock()
             .unwrap_or_else(|e| e.into_inner())

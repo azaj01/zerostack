@@ -18,6 +18,7 @@ pub use write::WriteTool;
 
 use std::io;
 
+use compact_str::CompactString;
 use serde::Deserialize;
 
 use crate::permission::ask::{AskRequest, AskSender, UserDecision};
@@ -103,7 +104,7 @@ async fn handle_ask_inner(
     let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
     ask_tx
         .send(AskRequest {
-            tool: tool.to_string(),
+            tool: CompactString::new(tool),
             input: input.to_string(),
             reply: reply_tx,
         })

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use compact_str::CompactString;
 use rmcp::service::{RoleClient, RunningService, serve_client};
 use rmcp::transport::child_process::TokioChildProcess;
 use tokio::process::Command;
@@ -7,12 +8,12 @@ use tokio::process::Command;
 use super::config::McpServerConfig;
 
 pub struct McpClientHandle {
-    pub server_name: String,
+    pub server_name: CompactString,
     pub running_service: RunningService<RoleClient, ()>,
 }
 
 impl McpClientHandle {
-    pub async fn connect(server_name: String, config: &McpServerConfig) -> anyhow::Result<Self> {
+    pub async fn connect(server_name: CompactString, config: &McpServerConfig) -> anyhow::Result<Self> {
         match config {
             McpServerConfig::Command { command, args, env } => {
                 let mut cmd = Command::new(command);

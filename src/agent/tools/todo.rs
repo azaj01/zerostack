@@ -1,3 +1,4 @@
+use compact_str::CompactString;
 use rig::completion::ToolDefinition;
 use rig::tool::Tool;
 use serde::{Deserialize, Serialize};
@@ -7,8 +8,8 @@ use crate::agent::tools::{AskSender, PermCheck, ToolError, check_perm};
 #[derive(Serialize, Deserialize, Clone)]
 pub struct TodoItem {
     pub content: String,
-    pub status: String,
-    pub priority: String,
+    pub status: CompactString,
+    pub priority: CompactString,
 }
 
 #[derive(Deserialize)]

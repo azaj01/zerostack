@@ -31,8 +31,8 @@ pub struct Compaction {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PermissionAllowEntry {
-    pub tool: String,
-    pub pattern: String,
+    pub tool: CompactString,
+    pub pattern: CompactString,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

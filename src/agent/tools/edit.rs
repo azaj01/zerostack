@@ -1,5 +1,6 @@
 use rig::completion::ToolDefinition;
 use rig::tool::Tool;
+use smallvec::SmallVec;
 
 use crate::agent::tools::{AskSender, EditArgs, PermCheck, ToolError, check_perm_path};
 
@@ -107,7 +108,7 @@ impl Tool for EditTool {
             )));
         }
 
-        let match_positions: Vec<usize> = content
+        let match_positions: SmallVec<[usize; 8]> = content
             .match_indices(&args.old_text)
             .map(|(i, _)| i)
             .collect();

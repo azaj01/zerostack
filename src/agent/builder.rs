@@ -2,6 +2,7 @@ use compact_str::CompactString;
 use rig::agent::{Agent, AgentBuilder};
 use rig::completion::CompletionModel;
 use rig::providers::openrouter;
+use smallvec::SmallVec;
 
 use crate::agent::prompt::{SYSTEM_PROMPT, TODO_TOOLS_PROMPT};
 use crate::agent::tools;
@@ -69,7 +70,7 @@ pub async fn build_agent_inner<M: CompletionModel + 'static>(
         builder.build()
     } else {
         let max_text_file_size = cfg.max_text_file_size;
-        let base_tools: Vec<Box<dyn rig::tool::ToolDyn>> = vec![
+        let base_tools: SmallVec<[Box<dyn rig::tool::ToolDyn>; 8]> = SmallVec::from_buf([
             Box::new(tools::ReadTool::new(permission.clone(), ask_tx.clone(), max_text_file_size)),
             Box::new(tools::WriteTool::new(permission.clone(), ask_tx.clone(), max_text_file_size)),
             Box::new(tools::EditTool::new(permission.clone(), ask_tx.clone())),
@@ -88,10 +89,9 @@ pub async fn build_agent_inner<M: CompletionModel + 'static>(
                 permission.clone(),
                 ask_tx.clone(),
             )),
-        ];
+        ]);
 
-        #[allow(unused_mut)]
-        let mut builder = builder.tools(base_tools);
+        let mut builder = builder.tools(base_tools.into_vec());
 
         #[cfg(feature = "mcp")]
         if let Some(manager) = &mcp_manager {

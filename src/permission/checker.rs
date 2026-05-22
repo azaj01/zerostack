@@ -2,6 +2,8 @@ use std::collections::{HashMap, VecDeque};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+use smallvec::SmallVec;
+
 use crate::permission::pattern::Pattern;
 use crate::permission::{Action, PermissionConfig, SecurityMode, ToolPerm};
 
@@ -123,7 +125,7 @@ impl PermissionChecker {
             return CheckResult::Allowed;
         }
 
-        let mut matched: Vec<Action> = Vec::new();
+        let mut matched: SmallVec<[Action; 4]> = SmallVec::new();
         if let Some(rules) = self.rules.get(tool) {
             for (pattern, action) in rules {
                 if pattern.matches(input) {
@@ -187,7 +189,7 @@ impl PermissionChecker {
         }
 
         let abs_path = resolve_absolute(path, &self.working_dir);
-        let mut matched: Vec<Action> = Vec::new();
+        let mut matched: SmallVec<[Action; 4]> = SmallVec::new();
         if let Some(rules) = self.rules.get(tool) {
             for (pattern, action) in rules {
                 if pattern.matches(&abs_path) || pattern.matches(path) {
