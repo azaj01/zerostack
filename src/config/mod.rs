@@ -28,22 +28,12 @@ pub struct CustomProviderConfig {
     pub danger_accept_invalid_certs: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ColorsConfig {
     pub chat_background: Option<CompactString>,
     pub input_background: Option<CompactString>,
     pub status_background: Option<CompactString>,
-}
-
-impl Default for ColorsConfig {
-    fn default() -> Self {
-        ColorsConfig {
-            chat_background: None,
-            input_background: None,
-            status_background: None,
-        }
-    }
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -214,8 +204,7 @@ pub fn save_quick_model(name: &str, provider: &str, model: &str) -> std::io::Res
     std::fs::create_dir_all(parent)?;
     match path.extension().and_then(|e| e.to_str()) {
         Some("toml") => {
-            let content =
-                toml::to_string(&cfg).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            let content = toml::to_string(&cfg).map_err(std::io::Error::other)?;
             std::fs::write(&path, content)?;
         }
         _ => std::fs::write(&path, serde_json::to_string_pretty(&cfg)?)?,
@@ -231,10 +220,10 @@ pub fn load() -> Config {
             std::fs::create_dir_all(parent).ok();
         }
         let default = Config::default();
-        if path.extension().and_then(|e| e.to_str()) == Some("toml") {
-            if let Ok(content) = toml::to_string(&default) {
-                std::fs::write(&path, content).ok();
-            }
+        if path.extension().and_then(|e| e.to_str()) == Some("toml")
+            && let Ok(content) = toml::to_string(&default)
+        {
+            std::fs::write(&path, content).ok();
         }
         default
     } else {

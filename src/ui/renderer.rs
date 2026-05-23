@@ -2,8 +2,10 @@ use std::io::{self, Write};
 
 use compact_str::CompactString;
 use crossterm::ExecutableCommand;
-use crossterm::cursor::{Hide, MoveTo, Show};
-use crossterm::style::{Attribute, Color, ResetColor, SetAttribute, SetBackgroundColor, SetForegroundColor};
+use crossterm::cursor::MoveTo;
+use crossterm::style::{
+    Attribute, Color, ResetColor, SetAttribute, SetBackgroundColor, SetForegroundColor,
+};
 use crossterm::terminal::{Clear, ClearType, ScrollUp};
 use smallvec::{smallvec, SmallVec};
 
