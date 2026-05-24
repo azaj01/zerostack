@@ -338,6 +338,68 @@ pub async fn run_interactive(
         perm_mode().as_deref(),
     )?;
 
+    #[cfg(feature = "git-worktree")]
+    if let Some(name) = &cli.worktree {
+        match crate::extras::git_worktree::create(name) {
+            Ok((path, _info)) => {
+                std::env::set_current_dir(&path).ok();
+                session.working_dir = compact_str::CompactString::new(path.to_string_lossy());
+                context.reload();
+                let model = client.completion_model(session.model.to_string());
+                agent = Some(crate::provider::build_agent(
+                    model,
+                    cli,
+                    cfg,
+                    context,
+                    permission.clone(),
+                    ask_tx.clone(),
+                    sandbox.clone(),
+                    reasoning_enabled,
+                    #[cfg(feature = "mcp")]
+                    mcp_manager,
+                )
+                .await);
+                let _ = render_session(&mut renderer, session, cli, cfg, context);
+            }
+            Err(e) => {
+                let _ = renderer.write_line(&format!("worktree failed: {}", e), C_ERROR);
+            }
+        }
+    }
+    #[cfg(feature = "git-worktree")]
+    if cli.parallel {
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let name = ts.to_string();
+        match crate::extras::git_worktree::create(&name) {
+            Ok((path, _info)) => {
+                std::env::set_current_dir(&path).ok();
+                session.working_dir = compact_str::CompactString::new(path.to_string_lossy());
+                context.reload();
+                let model = client.completion_model(session.model.to_string());
+                agent = Some(crate::provider::build_agent(
+                    model,
+                    cli,
+                    cfg,
+                    context,
+                    permission.clone(),
+                    ask_tx.clone(),
+                    sandbox.clone(),
+                    reasoning_enabled,
+                    #[cfg(feature = "mcp")]
+                    mcp_manager,
+                )
+                .await);
+                let _ = render_session(&mut renderer, session, cli, cfg, context);
+            }
+            Err(e) => {
+                let _ = renderer.write_line(&format!("worktree failed: {}", e), C_ERROR);
+            }
+        }
+    }
+
     let (mut user_tx, mut user_rx) = mpsc::channel::<UserEvent>(64);
     let mut running = Arc::new(AtomicBool::new(true));
     let mut event_handle = Some(spawn_event_thread(user_tx.clone(), running.clone()));
@@ -978,6 +1040,15 @@ pub async fn run_interactive(
                 tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
             }
         }
+    }
+
+    #[cfg(feature = "git-worktree")]
+    if cli.resolve_wt_auto_merge(cfg)
+        && let Some(info) = crate::extras::git_worktree::detect()
+    {
+        let target = crate::extras::git_worktree::default_branch(&info.main_repo_path)
+            .unwrap_or_else(|| "main".to_string());
+        let _ = crate::extras::git_worktree::merge(&info, &target);
     }
 
     Ok(())

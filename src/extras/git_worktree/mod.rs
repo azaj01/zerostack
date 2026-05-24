@@ -112,3 +112,41 @@ pub fn repo_name(path: &Path) -> String {
         .map(|s| s.to_string_lossy().to_string())
         .unwrap_or_else(|| "unknown".to_string())
 }
+
+pub fn merge(info: &WorktreeInfo, target: &str) -> Result<(), String> {
+    // Change to main repo
+    let orig = std::env::current_dir().map_err(|e| e.to_string())?;
+    std::env::set_current_dir(&info.main_repo_path).map_err(|e| e.to_string())?;
+
+    let result = (|| -> Result<(), String> {
+        // Fetch latest
+        run_git(["fetch", "--all"])?;
+        // Checkout target branch
+        run_git(["checkout", target])?;
+        // Pull latest
+        run_git(["pull"])?;
+        // Merge the worktree branch
+        run_git(["merge", &info.branch])?;
+        // Delete the worktree
+        run_git(["worktree", "remove", &info.worktree_path.to_string_lossy()])?;
+        // Delete the local branch
+        run_git(["branch", "-d", &info.branch])?;
+        Ok(())
+    })();
+
+    // Restore original directory
+    let _ = std::env::set_current_dir(&orig);
+    result
+}
+
+fn run_git<const N: usize>(args: [&str; N]) -> Result<(), String> {
+    let output = std::process::Command::new("git")
+        .args(args)
+        .output()
+        .map_err(|e| format!("git failed: {}", e))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("git {} failed: {}", args.join(" "), stderr.trim()));
+    }
+    Ok(())
+}
