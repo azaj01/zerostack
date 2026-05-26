@@ -30,6 +30,32 @@ fn truncate_marked(mut s: String, max: usize) -> String {
     s
 }
 
+/// Filesystem-safe, collision-resistant slug for a project path:
+/// "<sanitized-basename>-<8 hex of full-path hash>". Two different absolute
+/// paths that share a basename still get distinct slugs.
+pub fn project_slug(path: &Path) -> String {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    path.hash(&mut h);
+    let short = h.finish() as u32;
+    let base = path.file_name().and_then(|s| s.to_str()).unwrap_or("root");
+    let mut slug: String = base
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    slug.truncate(40);
+    if slug.is_empty() {
+        slug.push_str("root");
+    }
+    format!("{slug}-{short:08x}")
+}
+
 // ---------------------------------------------------------------------------
 // Core store (pure std; logic covered by src/tests/memory_tests.rs)
 // ---------------------------------------------------------------------------
@@ -49,16 +75,25 @@ pub enum WriteMode {
 
 pub struct Mem {
     pub root: PathBuf,
+    /// Slug for the current project; scopes SCRATCHPAD/daily/notes so different
+    /// projects don't pollute each other. MEMORY.md stays global (shared).
+    pub project: String,
     pub today: String,
     pub yesterday: String,
 }
 
 impl Mem {
-    /// Open the store rooted at `<config_dir>/agent/memory/`, using today's date.
+    /// Open the store rooted at `<config_dir>/agent/memory/`, using today's date
+    /// and a project slug derived from the current working directory.
     pub fn open() -> Self {
         let root = crate::session::storage::config_path()
             .join("agent")
             .join("memory");
+        // Scope per-project files by the current working directory, matching the
+        // cwd zerostack injects into the preamble.
+        let project = std::env::current_dir()
+            .map(|p| project_slug(&p))
+            .unwrap_or_else(|_| "default".to_string());
         let today = Local::now().format("%Y-%m-%d").to_string();
         let yesterday = (Local::now() - Duration::days(1))
             .format("%Y-%m-%d")
@@ -66,21 +101,25 @@ impl Mem {
         Mem {
             root,
             today,
+            project,
             yesterday,
         }
     }
 
     fn memory_md(&self) -> PathBuf {
-        self.root.join("MEMORY.md")
+        self.root.join("MEMORY.md") // global, shared across projects
+    }
+    fn project_dir(&self) -> PathBuf {
+        self.root.join("projects").join(&self.project)
     }
     fn scratchpad(&self) -> PathBuf {
-        self.root.join("SCRATCHPAD.md")
+        self.project_dir().join("SCRATCHPAD.md")
     }
     fn daily_dir(&self) -> PathBuf {
-        self.root.join("daily")
+        self.project_dir().join("daily")
     }
     fn notes_dir(&self) -> PathBuf {
-        self.root.join("notes")
+        self.project_dir().join("notes")
     }
     fn daily_file(&self, date: &str) -> PathBuf {
         self.daily_dir().join(format!("{date}.md"))
@@ -213,9 +252,9 @@ impl Mem {
         ))
     }
 
-    /// Case-insensitive literal search over MEMORY.md + notes/ + daily/. The
-    /// query is escaped (matched literally, not as a regex pattern). Each match
-    /// is returned with one line of surrounding context; adjacent matches are
+    /// Case-insensitive literal search over the global MEMORY.md + the current
+    /// project's notes/ and daily/. The query is escaped (matched literally, not as a regex pattern).
+    /// Each match is returned with one line of surrounding context; adjacent matches are
     /// merged, up to 3 regions per file. If only a filename matches, a short
     /// labeled preview is returned as a fallback.
     pub fn search(&self, query: &str) -> Vec<String> {
@@ -292,9 +331,9 @@ impl Mem {
             }
         };
 
-        scan(&self.root);
-        scan(&self.notes_dir());
-        scan(&self.daily_dir());
+        scan(&self.root); // global root: MEMORY.md only (projects/ is a dir, skipped)
+        scan(&self.notes_dir()); // current project's notes
+        scan(&self.daily_dir()); // current project's daily
         hits
     }
 }
@@ -428,6 +467,9 @@ daily (name=YYYY-MM-DD, omit for today), note (name=<stem>), or list (enumerate 
                 Mem::read_capped(&p)
             }
             "list" => {
+                // Global root yields MEMORY.md only (projects/ is a dir, skipped);
+                // notes_dir()/daily_dir() are the current project's, so listing is
+                // automatically scoped to global + current project.
                 let mut names = Vec::new();
                 for dir in [m.root.clone(), m.notes_dir(), m.daily_dir()] {
                     if let Ok(rd) = fs::read_dir(&dir) {

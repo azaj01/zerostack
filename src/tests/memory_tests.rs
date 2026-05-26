@@ -6,9 +6,9 @@
 //! need no env, no clock, no rig, and run fully in parallel. Paths are built
 //! from the public `root` field (Mem's own helpers are private).
 
-use crate::agent::memory::{MAX_INJECT_BYTES, Mem, WriteMode, WriteTarget};
+use crate::agent::memory::{MAX_INJECT_BYTES, Mem, WriteMode, WriteTarget, project_slug};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn fresh(tag: &str) -> Mem {
     let root = std::env::temp_dir().join(format!(
@@ -21,6 +21,7 @@ fn fresh(tag: &str) -> Mem {
     fs::create_dir_all(&root).unwrap();
     Mem {
         root,
+        project: "proj-test0001".into(),
         today: "2026-05-25".into(),
         yesterday: "2026-05-24".into(),
     }
@@ -29,13 +30,99 @@ fn cleanup(m: &Mem) {
     let _ = fs::remove_dir_all(&m.root);
 }
 fn memory_md(m: &Mem) -> PathBuf {
-    m.root.join("MEMORY.md")
+    m.root.join("MEMORY.md") // global
+}
+fn project_dir(m: &Mem) -> PathBuf {
+    m.root.join("projects").join(&m.project)
 }
 fn scratchpad(m: &Mem) -> PathBuf {
-    m.root.join("SCRATCHPAD.md")
+    project_dir(m).join("SCRATCHPAD.md")
 }
 fn daily(m: &Mem, d: &str) -> PathBuf {
-    m.root.join("daily").join(format!("{d}.md"))
+    project_dir(m).join("daily").join(format!("{d}.md"))
+}
+
+// ---- per-project scoping ----------------------------------------------------
+
+#[test]
+fn long_term_is_global_not_under_project() {
+    let m = fresh("ltg");
+    m.write(WriteTarget::LongTerm, "pref", WriteMode::Append, None)
+        .unwrap();
+    assert!(memory_md(&m).exists());
+    assert!(!project_dir(&m).join("MEMORY.md").exists());
+    cleanup(&m);
+}
+
+#[test]
+fn scratchpad_daily_notes_live_under_project() {
+    let m = fresh("pscope");
+    m.write(WriteTarget::Daily, "d", WriteMode::Append, None)
+        .unwrap();
+    m.write(WriteTarget::Note, "n", WriteMode::Overwrite, Some("x"))
+        .unwrap();
+    m.write(
+        WriteTarget::Scratchpad,
+        "- [ ] task",
+        WriteMode::Append,
+        None,
+    )
+    .unwrap();
+    assert!(daily(&m, &m.today).exists());
+    assert!(project_dir(&m).join("notes").join("x.md").exists());
+    assert!(scratchpad(&m).exists());
+    cleanup(&m);
+}
+
+#[test]
+fn daily_is_isolated_between_projects_but_memory_md_is_shared() {
+    let root = std::env::temp_dir().join(format!(
+        "zsiso-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(&root).unwrap();
+    let mk = |proj: &str| Mem {
+        root: root.clone(),
+        project: proj.into(),
+        today: "2026-05-25".into(),
+        yesterday: "2026-05-24".into(),
+    };
+    let a = mk("projA-aaaa0001");
+    let b = mk("projB-bbbb0002");
+
+    a.write(WriteTarget::Daily, "A-only secret", WriteMode::Append, None)
+        .unwrap();
+    assert!(
+        !b.context_block()
+            .unwrap_or_default()
+            .contains("A-only secret")
+    ); // B can't see A
+    assert!(a.context_block().unwrap().contains("A-only secret")); // A sees its own
+    assert!(b.search("A-only secret").is_empty()); // nor via search
+
+    a.write(
+        WriteTarget::LongTerm,
+        "global pref",
+        WriteMode::Overwrite,
+        None,
+    )
+    .unwrap();
+    assert!(b.context_block().unwrap().contains("global pref")); // MEMORY.md shared
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn project_slug_is_safe_and_path_distinct() {
+    let s1 = project_slug(Path::new("/home/u/projA"));
+    let s2 = project_slug(Path::new("/home/u/projB"));
+    let s3 = project_slug(Path::new("/elsewhere/projA"));
+    assert!(s1.starts_with("projA-"));
+    assert_ne!(s1, s2);
+    assert_ne!(s1, s3);
+    assert!(!s1.contains('/') && !s1.contains('\\') && !s1.contains('.'));
 }
 
 // ---- store: write / context_block -------------------------------------------
@@ -126,6 +213,7 @@ fn scratchpad_write_then_inject_open_items_only() {
 #[test]
 fn scratchpad_filter_handles_indent_and_star_bullets() {
     let m = fresh("spf");
+    fs::create_dir_all(project_dir(&m)).unwrap();
     fs::write(
         scratchpad(&m),
         "- [ ] open one\n- [x] closed\n  - [ ] indented open\n* [ ] star open\nplain line\n",
@@ -221,9 +309,9 @@ fn search_returns_surrounding_context_and_merges() {
         .find(|h| h.contains("auth"))
         .unwrap();
     assert!(e.contains("we chose jose"));
-    assert!(e.contains("because edge is incompatible")); // +1 line
-    assert!(e.contains("blah")); // -1 line
-    assert!(!e.contains("unrelated tail")); // outside window
+    assert!(e.contains("because edge is incompatible"));
+    assert!(e.contains("blah"));
+    assert!(!e.contains("unrelated tail"));
     cleanup(&m);
 }
 
@@ -242,7 +330,7 @@ fn search_caps_at_max_blocks() {
         .find(|h| h.contains("many"))
         .unwrap();
     assert!(e.contains("hit0") && e.contains("hit1") && e.contains("hit2"));
-    assert!(!e.contains("hit3") && !e.contains("hit4")); // capped at 3
+    assert!(!e.contains("hit3") && !e.contains("hit4"));
     cleanup(&m);
 }
 
