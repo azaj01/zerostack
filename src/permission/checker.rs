@@ -35,6 +35,7 @@ pub struct PermissionChecker {
     session_allowlist: Vec<(String, Pattern)>,
     recent_calls: VecDeque<(String, String)>,
     mode: SecurityMode,
+    user_mode: SecurityMode,
     permission_modes: Vec<SecurityMode>,
     allow_all_mcp_calls: bool,
 }
@@ -179,6 +180,7 @@ impl PermissionChecker {
             session_allowlist: Vec::new(),
             recent_calls: VecDeque::with_capacity(16),
             mode,
+            user_mode: mode,
             permission_modes: resolved_modes,
             allow_all_mcp_calls: false,
         }
@@ -426,6 +428,15 @@ impl PermissionChecker {
 
     pub fn set_mode(&mut self, mode: SecurityMode) {
         self.mode = mode;
+        self.user_mode = mode;
+    }
+
+    pub fn set_prompt_mode(&mut self, mode: SecurityMode) {
+        self.mode = mode;
+    }
+
+    pub fn restore_user_mode(&mut self) {
+        self.mode = self.user_mode;
     }
 
     pub fn mode(&self) -> SecurityMode {

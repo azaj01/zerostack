@@ -99,10 +99,19 @@ async fn main() -> anyhow::Result<()> {
     let mut context = context::load(cli.resolve_no_context_files(&cfg));
 
     let default_prompt = cfg.default_prompt.as_deref().unwrap_or("code");
-    if let Some(content) = context.prompts.get(default_prompt) {
-        context.current_prompt = Some(content.clone());
-        context.current_prompt_name = Some(default_prompt.to_string());
-    }
+    let default_prompt_mode: Option<&str> =
+        if let Some(content) = context.prompts.get(default_prompt) {
+            let (mode_directive, clean_content) = crate::permission::parse_prompt_mode(content);
+            context.current_prompt = Some(if mode_directive.is_some() {
+                clean_content.to_string()
+            } else {
+                content.clone()
+            });
+            context.current_prompt_name = Some(default_prompt.to_string());
+            mode_directive
+        } else {
+            None
+        };
 
     let mut provider = cli.resolve_provider(&cfg);
     let mut model = cli.resolve_model(&cfg);
@@ -205,9 +214,15 @@ async fn main() -> anyhow::Result<()> {
             .iter()
             .map(|e| (e.tool.to_string(), e.pattern.to_string()))
             .collect();
-        perm.lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .load_session_allowlist(&allowlist);
+        let mut guard = perm.lock().unwrap_or_else(|e| e.into_inner());
+        guard.load_session_allowlist(&allowlist);
+        // Apply mode from prompt %%mode= directive (if any)
+        if let Some(mode_str) = default_prompt_mode
+            && mode_str != "last_user_mode"
+            && let Some(mode) = SecurityMode::from_str(mode_str)
+        {
+            guard.set_prompt_mode(mode);
+        }
     }
 
     let completion_model = client.completion_model(model.to_string());

@@ -27,6 +27,7 @@ use crate::context::ContextFiles;
 use crate::event::{AgentEvent, UserEvent};
 #[cfg(feature = "mcp")]
 use crate::extras::mcp::McpClientManager;
+use crate::permission;
 use crate::permission::ask::{AskReceiver, AskSender};
 use crate::permission::checker::PermCheck;
 use crate::provider::{AnyAgent, AnyClient};
@@ -42,6 +43,29 @@ use crate::ui::status::StatusLine;
 use crate::ui::terminal::TerminalGuard;
 
 use self::utils::parse_color;
+
+pub(crate) fn apply_current_prompt_mode(
+    context: &mut ContextFiles,
+    permission: &Option<PermCheck>,
+) {
+    let Some(content) = &context.current_prompt.clone() else {
+        return;
+    };
+    let (mode_directive, clean_content) = permission::parse_prompt_mode(&content);
+    if mode_directive.is_some() {
+        context.current_prompt = Some(clean_content.to_string());
+    }
+    let Some(mode_str) = mode_directive else {
+        return;
+    };
+    let Some(perm) = permission else { return };
+    let mut guard = perm.lock().unwrap_or_else(|e| e.into_inner());
+    if mode_str == "last_user_mode" {
+        guard.restore_user_mode();
+    } else if let Some(mode) = permission::SecurityMode::from_str(mode_str) {
+        guard.set_prompt_mode(mode);
+    }
+}
 
 pub(super) const C_AGENT: Color = Color::White;
 pub(super) const C_ERROR: Color = Color::Red;
@@ -228,6 +252,7 @@ pub async fn run_interactive(
                 std::env::set_current_dir(&path).ok();
                 session.working_dir = compact_str::CompactString::new(path.to_string_lossy());
                 context.reload();
+                apply_current_prompt_mode(context, &permission);
                 #[cfg(feature = "mcp")]
                 let mcp_ref = ensure_mcp_manager(&mut mcp_manager, cfg).await;
                 let model = client.completion_model(session.model.to_string());
@@ -266,6 +291,7 @@ pub async fn run_interactive(
                 std::env::set_current_dir(&path).ok();
                 session.working_dir = compact_str::CompactString::new(path.to_string_lossy());
                 context.reload();
+                apply_current_prompt_mode(context, &permission);
                 #[cfg(feature = "mcp")]
                 let mcp_ref = ensure_mcp_manager(&mut mcp_manager, cfg).await;
                 let model = client.completion_model(session.model.to_string());
@@ -549,6 +575,7 @@ pub async fn run_interactive(
                                                 .map_err(|e| anyhow::anyhow!("failed to change directory: {}", e))?;
                                             session.working_dir = compact_str::CompactString::new(main_path);
                                             context.reload();
+                                            apply_current_prompt_mode(context, &permission);
                                             #[cfg(feature = "mcp")]
                                             let mcp_ref = ensure_mcp_manager(&mut mcp_manager, cfg).await;
                                             let model = client.completion_model(session.model.to_string());

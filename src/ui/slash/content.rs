@@ -1,4 +1,5 @@
 use crate::context;
+use crate::permission::{self, SecurityMode};
 use crate::session::storage;
 use crate::ui::slash::{SlashCtx, write_error, write_ok, write_result};
 
@@ -45,8 +46,38 @@ async fn handle_prompt(parts: &[&str], ctx: &mut SlashCtx<'_>) -> anyhow::Result
     } else {
         let name = parts[1].trim();
         if let Some(content) = ctx.context.prompts.get(name) {
-            ctx.context.current_prompt = Some(content.clone());
+            let (mode_directive, clean_content) = permission::parse_prompt_mode(content);
+            ctx.context.current_prompt = Some(if mode_directive.is_some() {
+                clean_content.to_string()
+            } else {
+                content.clone()
+            });
             ctx.context.current_prompt_name = Some(name.to_string());
+            if let Some(mode_str) = mode_directive {
+                if mode_str == "last_user_mode" {
+                    if let Some(perm) = ctx.permission {
+                        perm.lock()
+                            .unwrap_or_else(|e| e.into_inner())
+                            .restore_user_mode();
+                        let current = perm
+                            .lock()
+                            .unwrap_or_else(|e| e.into_inner())
+                            .mode()
+                            .to_string();
+                        write_ok(ctx.renderer, format!("restored user mode: {}", current));
+                    }
+                } else if let Some(mode) = SecurityMode::from_str(mode_str) {
+                    if let Some(perm) = ctx.permission {
+                        perm.lock()
+                            .unwrap_or_else(|e| e.into_inner())
+                            .set_prompt_mode(mode);
+                        write_ok(
+                            ctx.renderer,
+                            format!("security mode: {} (from prompt)", mode),
+                        );
+                    }
+                }
+            }
             ctx.rebuild_agent().await;
             write_ok(ctx.renderer, format!("active prompt: {}", name));
         } else {

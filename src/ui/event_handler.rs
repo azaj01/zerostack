@@ -17,7 +17,7 @@ use crate::ui::events::sanitize_output;
 use crate::ui::renderer::Renderer;
 use crate::ui::slash::handle_compress;
 
-use super::{C_AGENT, C_ERROR, C_TOOL};
+use super::{C_AGENT, C_ERROR, C_TOOL, apply_current_prompt_mode};
 
 #[cfg(feature = "mcp")]
 #[allow(clippy::too_many_arguments)]
@@ -394,6 +394,7 @@ async fn handle_agent_done(
             Ok(()) => {
                 session.working_dir = compact_str::CompactString::new(&main_path);
                 context.reload();
+                apply_current_prompt_mode(context, permission);
                 *agent = Some({
                     let model = client.completion_model(session.model.to_string());
                     crate::provider::build_agent(
