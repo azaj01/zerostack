@@ -32,10 +32,11 @@ All slash commands are available from the TUI input prompt.
 | Command | Description |
 | ------- | ----------- |
 | `/mode` | Show the current security mode. |
-| `/mode standard` | Use configured permission rules. |
-| `/mode restrictive` | All tools require approval. |
-| `/mode accept` | Auto-accept operations within the working directory. |
-| `/mode yolo` | Auto-accept ALL operations. |
+| `/mode standard` | Allow path tools within CWD, ask for external paths. Config rules apply. |
+| `/mode restrictive` | Ask for every operation. Config rules skipped. |
+| `/mode readonly` | Allow reads only; deny writes, edits, bash, and everything else. |
+| `/mode guarded` | Allow reads; ask for writes, edits, bash, and everything else. Config rules apply. |
+| `/mode yolo` | Allow everything; ask for destructive bash commands. Config rules apply. |
 
 ## Prompts & Themes
 

@@ -39,7 +39,9 @@ Example (JSON):
   "compact_enabled": true,
   "default_prompt": "code",
   "default_permission_mode": "standard",
+  "permission-modes": ["guarded", "standard", "yolo"],
   "show_tool_details": false,
+  "sandbox": false,
   "quick_models": {
     "fast": {
       "provider": "openai",
@@ -100,6 +102,7 @@ compact_enabled = true
 edit_system = "similarity"
 default_prompt = "code"
 default_permission_mode = "standard"
+permission-modes = ["guarded", "standard", "yolo"]
 show_tool_details = false
 
 [quick_models.fast]
@@ -153,11 +156,12 @@ Accepted top-level keys:
 | `permission-allow`        | object  | Map of tool names to lists of glob patterns to allow. Works alongside the `permission` field. See below.    |
 | `permission-ask`          | object  | Map of tool names to lists of glob patterns to prompt on. Works alongside the `permission` field. See below.|
 | `permission-deny`         | object  | Map of tool names to lists of glob patterns to deny. Works alongside the `permission` field. See below.     |
-| `restrictive`             | boolean | Select restrictive permission mode. Overridden by `accept_all`/`yolo` if those are also true.                                                                               |
-| `accept_all`              | boolean | Select accept mode, equivalent to `--accept-all`. Overridden by `yolo` if true.                                                                                             |
-| `yolo`                    | boolean | Select yolo mode, auto-approving all operations.                                                                                                                            |
+| `restrictive`             | boolean | Select restrictive permission mode (ask for every operation). Overridden by `accept_all`/`yolo` if those are also true.                                                     |
+| `accept_all`              | boolean | Select standard permission mode with auto-allow within CWD (equivalent to `default_permission_mode = "standard"`). Overridden by `yolo` if true.                            |
+| `yolo`                    | boolean | Select yolo mode (allow all, ask for destructive bash commands).                                                                                                            |
+| `permission-modes`        | array   | List of mode names that apply config-based rules. Default: `["guarded", "standard", "yolo"]`. Modes excluded from this list skip config rule matching entirely.             |
 | `sandbox`                 | boolean | Run bash commands in the bubblewrap sandbox. Default: `false`.                                                                                                              |
-| `default_permission_mode` | string  | Permission mode when no mode boolean/CLI flag is set. Use `standard`, `restrictive`, `accept`, or `yolo`.                                                                   |
+| `default_permission_mode` | string  | Permission mode when no mode boolean/CLI flag is set. Accepts: `standard` (default), `restrictive`, `readonly`, `guarded`, `yolo`.                                          |
 | `show_tool_details`       | boolean | Show tool-result previews in the TUI. Default: `false`.                                                                                                                     |
 | `default_prompt`          | string  | Prompt name to activate on startup. Default: `code`.                                                                                                                        |
 | `editor`                  | string  | Editor command for `Ctrl+G` (default: `$EDITOR` env var, then `editor`, then `nano`).                                                                                        |

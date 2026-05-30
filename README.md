@@ -6,7 +6,7 @@ Minimal coding agent written in Rust, inspired by [pi](https://pi.dev/docs/lates
 
 - **Multi-provider**: OpenRouter, OpenAI, Anthropic, Gemini, Ollama, plus custom providers
 - **Standard tools**: all of the standard tools exposed to coding agents, as described by the opencode documentation.
-- **Permission system**: four configurable modes with per-tool patterns, session allowlists, and external directory policies
+- **Permission system**: five configurable modes with per-tool patterns, session allowlists, and configurable mode-to-rule application policies
 - **Session management**: save/load/resume sessions, auto-compaction to stay within context windows
 - **Terminal UI**: crossterm-based, markdown rendering, mouse selection/copy, scrollback, reasoning visibility toggle
 - **Prompts system**: switch between system prompt modes at runtime (`code`, `plan`, `review`, `debug`, etc.) to tailor the agent's behavior to the task without having to manage Skills.
@@ -121,15 +121,32 @@ system prompt. Use `-n` / `--no-context-files` to disable this.
 
 ## Permission system
 
-zerostack has four permission modes, from safest to most permissive:
+zerostack has five permission modes:
 
-1. **restrictive** (`-R`): every tool action prompts for approval unless
-   explicitly allowed in config
-2. **standard** (default): safe commands (ls, cd, git log, cargo check) are
-   auto-approved; writes and destructive operations ask
-3. **accept-all** (`--accept-all`): auto-approves all operations inside the
-   working directory; external paths prompt for confirmation
-4. **yolo** (`--yolo`): auto-approves everything without prompting
+| Mode | CLI flag | Behavior |
+|------|----------|----------|
+| **restrictive** | `-R` / `--restrictive` | Ask for every operation. Config rules are ignored by default (can be enabled via `permission-modes`). |
+| **readonly** | — | Allow read/grep/find_files/list_dir. Deny writes, edits, bash, and everything else. Config rules ignored by default. |
+| **guarded** | — | Allow read tools. Ask for writes, edits, bash, and everything else. Config rules apply. |
+| **standard** | (default) | Allow path tools (read/write/edit/list_dir) within CWD and subdirectories. Safe bash commands (ls, cat, git log, cargo check) auto-allowed. Ask for external paths and unrecognized commands. Config rules apply and override mode defaults. |
+| **yolo** | `--yolo` | Allow everything, but prompt for destructive bash commands (rm, dd, mkfs, etc.). Config rules apply. |
+
+In all modes except `dangerously-skip-permissions`, config-based rules
+(`permission`, `permission-allow`, etc.) are always checked and take
+priority over mode defaults.
+
+### Configurable rule application
+
+The `permission-modes` config key controls which modes apply config-based rules.
+By default, it includes `guarded`, `standard`, and `yolo`. Modes not in this
+list (such as `restrictive` and `readonly` by default) skip config-based rule
+matching and rely entirely on their built-in mode behavior.
+
+### `--dangerously-skip-permissions`
+
+The `--dangerously-skip-permissions` flag completely bypasses all permission
+checks, allowing every tool operation without any guard. This is not a mode
+and cannot be toggled at runtime.
 
 Permissions can be configured per-tool with granular glob patterns in the
 config file. For example, you can allow `write **.rs` automatically while
