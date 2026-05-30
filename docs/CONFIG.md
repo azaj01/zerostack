@@ -50,7 +50,8 @@ Example (JSON):
     "local-vllm": {
       "provider_type": "openai",
       "base_url": "http://localhost:8000/v1",
-      "api_key_env": "VLLM_API_KEY"
+      "api_key_env": "VLLM_API_KEY",
+      "model": "gemma4"
     },
     "company-gateway": {
       "provider_type": "openai",

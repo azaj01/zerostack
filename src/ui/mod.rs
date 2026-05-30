@@ -132,10 +132,10 @@ async fn ensure_mcp_manager<'a>(
     mcp: &'a mut Option<McpClientManager>,
     cfg: &'a Config,
 ) -> Option<&'a McpClientManager> {
-    if mcp.is_none() {
-        if let Some(servers) = &cfg.mcp_servers {
-            *mcp = Some(McpClientManager::connect_all(servers).await);
-        }
+    if mcp.is_none()
+        && let Some(servers) = &cfg.mcp_servers
+    {
+        *mcp = Some(McpClientManager::connect_all(servers).await);
     }
     mcp.as_ref()
 }

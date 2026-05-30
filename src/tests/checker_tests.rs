@@ -436,8 +436,7 @@ fn mcp_tool_simple_rule_is_respected() {
         mcp_tool: Some(ToolPerm::Simple(Action::Deny)),
         ..PermissionConfig::default()
     };
-    let mut checker =
-        PermissionChecker::new(&configs_from(config), SecurityMode::Standard, None);
+    let mut checker = PermissionChecker::new(&configs_from(config), SecurityMode::Standard, None);
     let result = checker.check("mcp_tool", "mcp_tool:filesystem:read_file");
     assert!(
         matches!(result, CheckResult::Denied(_)),
@@ -458,8 +457,7 @@ fn mcp_tool_granular_rules_respected() {
         )),
         ..PermissionConfig::default()
     };
-    let mut checker =
-        PermissionChecker::new(&configs_from(config), SecurityMode::Standard, None);
+    let mut checker = PermissionChecker::new(&configs_from(config), SecurityMode::Standard, None);
     assert_eq!(
         checker.check("mcp_tool", "mcp_tool:fs:allow_read"),
         CheckResult::Allowed

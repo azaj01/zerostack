@@ -16,13 +16,13 @@ pub fn expand_tilde(s: &str) -> String {
         }
         return s.to_string();
     }
-    if let Some(rest) = s.strip_prefix("$HOME/") {
-        if let Some(h) = home() {
-            return std::path::Path::new(&h)
-                .join(rest)
-                .to_string_lossy()
-                .to_string();
-        }
+    if let Some(rest) = s.strip_prefix("$HOME/")
+        && let Some(h) = home()
+    {
+        return std::path::Path::new(&h)
+            .join(rest)
+            .to_string_lossy()
+            .to_string();
     }
     s.to_string()
 }

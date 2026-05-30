@@ -499,10 +499,7 @@ impl Renderer {
                         if break_at != idx {
                             end = break_at;
                             // Recalculate width for the shortened chunk
-                            w = chars[idx..end]
-                                .iter()
-                                .map(|&c| char_display_width(c))
-                                .sum();
+                            w = chars[idx..end].iter().map(|&c| char_display_width(c)).sum();
                         }
                     }
                     let chunk: String = chars[idx..end].iter().collect();

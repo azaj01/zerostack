@@ -1,4 +1,5 @@
 mod bash;
+pub(crate) mod crc;
 pub(crate) mod edit;
 mod find_files;
 mod grep;
@@ -7,7 +8,6 @@ mod normalize;
 pub(crate) mod read;
 mod todo;
 mod write;
-pub(crate) mod crc;
 
 pub(crate) use normalize::{levenshtein_similarity, normalize_whitespace};
 

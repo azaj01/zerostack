@@ -105,6 +105,14 @@ async fn main() -> anyhow::Result<()> {
         model = qm.model.clone();
     }
 
+    // Custom provider model override (if no explicit model set)
+    if let Some(custom) = cfg.custom_providers_map().get(provider.as_str())
+        && (model.as_str() == "deepseek/deepseek-v4-flash" || cli.model.is_none())
+        && let Some(ref custom_model) = custom.model
+    {
+        model = custom_model.clone();
+    }
+
     let mut session = session::Session::new(&provider, &model, cfg.resolve_context_window());
 
     if cli.resume && cli.session.is_none() && !cli.continue_session {

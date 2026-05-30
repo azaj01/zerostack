@@ -29,6 +29,8 @@ pub struct CustomProviderConfig {
     pub headers: HashMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timeout_secs: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<CompactString>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -54,7 +56,10 @@ impl std::str::FromStr for EditSystem {
         match s {
             "similarity" => Ok(EditSystem::Similarity),
             "hashedit" => Ok(EditSystem::Hashedit),
-            _ => Err(format!("unknown edit system '{}' (valid: similarity, hashedit)", s)),
+            _ => Err(format!(
+                "unknown edit system '{}' (valid: similarity, hashedit)",
+                s
+            )),
         }
     }
 }

@@ -593,6 +593,7 @@ mod tests {
             api_style,
             headers: std::collections::HashMap::new(),
             timeout_secs: None,
+            model: None,
         }
     }
 

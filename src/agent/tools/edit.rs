@@ -1,11 +1,11 @@
 use rig::completion::ToolDefinition;
 use rig::tool::Tool;
 
-use crate::agent::tools::{
-    AskSender, EditArgs, EditBlock, EditOp, PermCheck, ToolError, check_perm_path,
-    edit_system, levenshtein_similarity, normalize_whitespace,
-};
 use crate::agent::tools::crc::crc32_hex;
+use crate::agent::tools::{
+    AskSender, EditArgs, EditBlock, EditOp, PermCheck, ToolError, check_perm_path, edit_system,
+    levenshtein_similarity, normalize_whitespace,
+};
 use crate::config::types::EditSystem;
 
 pub struct EditTool {
@@ -135,7 +135,8 @@ fn compute_byte_range(content: &str, norm_pos: usize, norm_len: usize) -> (usize
         }
 
         // CRLF edge case: original \r\n maps to a single \n in normalized
-        if b == b'\r' && norm_rem < content_norm.len() && content_norm.as_bytes()[norm_rem] == b'\n' {
+        if b == b'\r' && norm_rem < content_norm.len() && content_norm.as_bytes()[norm_rem] == b'\n'
+        {
             orig_pos += 1;
             continue;
         }
@@ -225,7 +226,11 @@ fn count_exact_matches(content: &str, search: &str) -> usize {
     content.match_indices(search).count()
 }
 
-async fn handle_similarity(path: &str, block: &str, content: &str) -> Result<(Vec<String>, Vec<(usize, usize, String)>), ToolError> {
+async fn handle_similarity(
+    path: &str,
+    block: &str,
+    content: &str,
+) -> Result<(Vec<String>, Vec<(usize, usize, String)>), ToolError> {
     let blocks = parse_blocks(block)?;
 
     struct ResolvedSim {
@@ -331,7 +336,7 @@ async fn handle_similarity(path: &str, block: &str, content: &str) -> Result<(Ve
 // ── V2: Hashedit (tag-based) ────────────────────────────────────────────
 
 fn parse_tagged_line(raw: &str) -> Option<(usize, String)> {
-    let stripped = raw.trim_start_matches(|c: char| c == ' ' || c == '\t');
+    let stripped = raw.trim_start_matches([' ', '\t']);
     let (num_tag, _content) = stripped.split_once(' ')?;
     let (num_str, tag) = num_tag.split_once('|')?;
     let line_num: usize = num_str.parse().ok()?;
@@ -367,7 +372,11 @@ fn extract_line_info(lines_raw: &str) -> Result<Vec<(usize, String)>, ToolError>
 fn validate_tag(content_lines: &[&str], line_num: usize, tag: &str) -> Result<(), ToolError> {
     let idx = line_num.saturating_sub(1);
     let actual = content_lines.get(idx).ok_or_else(|| {
-        ToolError::Msg(format!("Line {} is out of range (file has {} lines)", line_num, content_lines.len()))
+        ToolError::Msg(format!(
+            "Line {} is out of range (file has {} lines)",
+            line_num,
+            content_lines.len()
+        ))
     })?;
     let expected = crc32_hex(actual.as_bytes());
     if expected != tag {
@@ -379,7 +388,11 @@ fn validate_tag(content_lines: &[&str], line_num: usize, tag: &str) -> Result<()
     Ok(())
 }
 
-fn line_range_to_byte_range(content_lines: &[&str], start_line: usize, end_line: usize) -> (usize, usize) {
+fn line_range_to_byte_range(
+    content_lines: &[&str],
+    start_line: usize,
+    end_line: usize,
+) -> (usize, usize) {
     if content_lines.is_empty() || start_line == 0 || start_line > content_lines.len() {
         return (0, 0);
     }
@@ -437,9 +450,8 @@ async fn handle_hashedit(
                         label, single_line
                     ))
                 })?;
-                validate_tag(&content_lines, line_num, &tag).map_err(|e| {
-                    ToolError::Msg(format!("{}{}", label, e))
-                })?;
+                validate_tag(&content_lines, line_num, &tag)
+                    .map_err(|e| ToolError::Msg(format!("{}{}", label, e)))?;
 
                 let (byte_start, byte_end) =
                     line_range_to_byte_range(&content_lines, line_num, line_num);
@@ -448,9 +460,8 @@ async fn handle_hashedit(
             (None, Some(multi_lines)) => {
                 let entries = extract_line_info(multi_lines)?;
                 for &(line_num, ref tag) in &entries {
-                    validate_tag(&content_lines, line_num, tag).map_err(|e| {
-                        ToolError::Msg(format!("{}{}", label, e))
-                    })?;
+                    validate_tag(&content_lines, line_num, tag)
+                        .map_err(|e| ToolError::Msg(format!("{}{}", label, e)))?;
                 }
                 let start_line = entries[0].0;
                 let end_line = entries[entries.len() - 1].0;

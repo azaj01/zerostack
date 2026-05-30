@@ -145,7 +145,15 @@ async fn run_prompt(
     cx: ConnectionTo<Client>,
 ) -> Result<(), agent_client_protocol::Error> {
     let provider_str = state.cli.resolve_provider(&state.cfg);
-    let model_str = state.cli.resolve_model(&state.cfg);
+    let mut model_str = state.cli.resolve_model(&state.cfg);
+
+    // Custom provider model override (if no explicit model set)
+    if (model_str.as_str() == "deepseek/deepseek-v4-flash" || state.cli.model.is_none())
+        && let Some(custom) = state.cfg.custom_providers_map().get(provider_str.as_str())
+        && let Some(ref custom_model) = custom.model
+    {
+        model_str = custom_model.clone();
+    }
 
     let client = crate::provider::create_client(
         &provider_str,

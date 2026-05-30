@@ -324,7 +324,8 @@ impl PermissionChecker {
                 let expanded = crate::fs::expand_tilde(pat);
                 let abs = resolve_absolute(&expanded, &self.working_dir);
                 if abs != expanded {
-                    self.session_allowlist.push((tool.clone(), Pattern::new(&abs)));
+                    self.session_allowlist
+                        .push((tool.clone(), Pattern::new(&abs)));
                 }
             }
         }

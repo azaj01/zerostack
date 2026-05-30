@@ -38,7 +38,13 @@ the `custom_providers` key in the config file:
     "local-vllm": {
       "provider_type": "openai",
       "base_url": "http://localhost:8000/v1",
-      "api_key_env": "VLLM_API_KEY"
+      "api_key_env": "VLLM_API_KEY",
+      "model": "gemma4"
+    },
+    "company-gateway": {
+      "provider_type": "openai",
+      "base_url": "https://gateway.example.com/v1",
+      "model": "glm"
     }
   }
 }
@@ -53,6 +59,7 @@ the `custom_providers` key in the config file:
 | `headers`                    | object  | Optional. HTTP headers to include in every request. Values support `${ENV_VAR}` expansion. |
 | `danger_accept_invalid_certs`| boolean | Optional. Disables TLS certificate verification (MITM risk — use with care). |
 | `timeout_secs`               | integer | Optional. Overrides the default HTTP timeout. |
+| `model`                      | string  | Optional. Default model name for this provider. Used when no model is specified via `--model` or `ZS_MODEL`. |
 
 ### Header variable expansion
 

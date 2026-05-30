@@ -2,7 +2,9 @@ use rig::completion::ToolDefinition;
 use rig::tool::Tool;
 
 use crate::agent::tools::crc::crc32_hex;
-use crate::agent::tools::{edit_system, AskSender, PermCheck, ReadArgs, ToolError, check_perm_path};
+use crate::agent::tools::{
+    AskSender, PermCheck, ReadArgs, ToolError, check_perm_path, edit_system,
+};
 use crate::config::types::EditSystem;
 
 const DEFAULT_MAX_TEXT_SIZE: u64 = 1024 * 1024;
@@ -102,7 +104,13 @@ impl Tool for ReadTool {
                         let line_num = offset + i + 1;
                         let tag = crc32_hex(line.as_bytes());
                         let line_num_width = if total_lines >= 1000 { 4 } else { 3 };
-                        format!("{:>width$}|{} {}", line_num, tag, line, width = line_num_width)
+                        format!(
+                            "{:>width$}|{} {}",
+                            line_num,
+                            tag,
+                            line,
+                            width = line_num_width
+                        )
                     })
                     .collect::<Vec<_>>()
                     .join("\n")

@@ -1,6 +1,6 @@
 use crate::agent::tools::crc::crc32_hex;
+use crate::agent::tools::set_edit_system;
 use crate::agent::tools::{EditArgs, EditOp, edit};
-use crate::agent::tools::{set_edit_system};
 use crate::config::types::EditSystem;
 use rig::tool::Tool;
 
@@ -56,9 +56,7 @@ async fn test_sim_rejects_empty_search() {
     let result = tool
         .call(EditArgs {
             path: tmp.path().into(),
-            block: Some(
-                "<<<<<<< SEARCH\n=======\nreplacement\n>>>>>>> REPLACE".into(),
-            ),
+            block: Some("<<<<<<< SEARCH\n=======\nreplacement\n>>>>>>> REPLACE".into()),
             file_crc: None,
             edits: None,
         })
@@ -99,9 +97,7 @@ async fn test_sim_single_block_replacement() {
     let result = tool
         .call(EditArgs {
             path: tmp.path().into(),
-            block: Some(
-                "<<<<<<< SEARCH\nafter\n=======\nmiddle\n>>>>>>> REPLACE".into(),
-            ),
+            block: Some("<<<<<<< SEARCH\nafter\n=======\nmiddle\n>>>>>>> REPLACE".into()),
             file_crc: None,
             edits: None,
         })
@@ -155,9 +151,7 @@ async fn test_sim_multi_match_returns_error() {
     let result = tool
         .call(EditArgs {
             path: tmp.path().into(),
-            block: Some(
-                "<<<<<<< SEARCH\nhello\n=======\nbye\n>>>>>>> REPLACE".into(),
-            ),
+            block: Some("<<<<<<< SEARCH\nhello\n=======\nbye\n>>>>>>> REPLACE".into()),
             file_crc: None,
             edits: None,
         })
@@ -175,9 +169,7 @@ async fn test_sim_preserves_crlf_line_endings() {
     let tool = edit::EditTool::new(None, None);
     tool.call(EditArgs {
         path: tmp.path().into(),
-        block: Some(
-            "<<<<<<< SEARCH\nline2\n=======\nmodified\n>>>>>>> REPLACE".into(),
-        ),
+        block: Some("<<<<<<< SEARCH\nline2\n=======\nmodified\n>>>>>>> REPLACE".into()),
         file_crc: None,
         edits: None,
     })
