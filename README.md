@@ -1,5 +1,8 @@
-# zerostack
+![banner](https://github.com/gi-dellav/zerostack/blob/main/assets/banner.png?raw=true)
 
+---
+
+# zerostack
 Minimal coding agent written in Rust, inspired by [pi](https://pi.dev/docs/latest/usage) and [opencode](https://opencode.ai/).
 
 ## Features
