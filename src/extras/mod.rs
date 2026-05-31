@@ -18,3 +18,5 @@ pub mod subagents;
 
 #[cfg(feature = "archmd")]
 pub mod archmd;
+
+pub(crate) mod truncate;

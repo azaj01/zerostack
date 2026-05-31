@@ -54,17 +54,20 @@ mod tests {
     // Response truncation
     // -----------------------------------------------------------------------
 
+    const CAP: usize = 128 * 1024;
+    const MARKER: &str = "\n…[subagent response truncated at 131072B]";
+
     #[test]
     fn truncate_response_preserves_short_string() {
         let s = "hello world";
-        let result = crate::extras::subagents::task_tool::truncate_response(s);
+        let result = crate::extras::truncate::truncate_cjk(s, CAP, MARKER);
         assert_eq!(result, s);
     }
 
     #[test]
     fn truncate_response_caps_long_string() {
         let s = "x".repeat(200 * 1024); // 200KB, well over the 128KB cap
-        let result = crate::extras::subagents::task_tool::truncate_response(&s);
+        let result = crate::extras::truncate::truncate_cjk(&s, CAP, MARKER);
         assert!(result.len() <= 128 * 1024 + 64); // cap + marker overhead
         assert!(result.contains("[subagent response truncated"));
     }
@@ -73,7 +76,7 @@ mod tests {
     fn truncate_response_does_not_panic_on_cjk() {
         // Cutting mid-char would panic with a plain String::truncate
         let cjk = "記憶".repeat(50 * 1024); // plenty of multi-byte chars
-        let result = crate::extras::subagents::task_tool::truncate_response(&cjk);
+        let result = crate::extras::truncate::truncate_cjk(&cjk, CAP, MARKER);
         // Must not panic; must contain the marker
         assert!(result.contains("[subagent response truncated"));
     }
@@ -81,7 +84,7 @@ mod tests {
     #[test]
     fn truncate_response_starts_with_prefix_of_original() {
         let s = "AAAABBBBCCCCDDDD";
-        let result = crate::extras::subagents::task_tool::truncate_response(s);
+        let result = crate::extras::truncate::truncate_cjk(s, CAP, MARKER);
         assert!(result.starts_with("AAAABB"));
     }
 

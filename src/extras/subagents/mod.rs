@@ -26,7 +26,7 @@ pub(crate) fn set_subagent_event_tx(tx: mpsc::Sender<AgentEvent>) {
     *guard = Some(tx);
 }
 
-pub(crate) fn take_subagent_event_tx() -> Option<mpsc::Sender<AgentEvent>> {
+pub(crate) fn clone_subagent_event_tx() -> Option<mpsc::Sender<AgentEvent>> {
     let guard = SUBAGENT_EVENT_TX.lock().unwrap_or_else(|e| e.into_inner());
     guard.clone()
 }

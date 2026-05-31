@@ -7,7 +7,8 @@ use serde::Deserialize;
 
 use crate::agent::tools::{ToolError, check_perm};
 use crate::extras::subagents::builder;
-use crate::extras::subagents::{take_subagent_event_tx, with_config};
+use crate::extras::subagents::{clone_subagent_event_tx, with_config};
+use crate::extras::truncate::truncate_cjk;
 use crate::permission::ask::AskSender;
 use crate::permission::checker::PermCheck;
 
@@ -83,7 +84,12 @@ Returns a summary of findings for each prompt."
         let (client, model_name, max_turns) =
             with_config(|cfg| (cfg.client.clone(), cfg.model_name.clone(), cfg.max_turns));
 
-        let subagent_event_tx = take_subagent_event_tx();
+        let subagent_event_tx = clone_subagent_event_tx();
+
+        #[cfg(feature = "archmd")]
+        let architecture = with_config(|cfg| cfg.architecture.clone());
+        #[cfg(not(feature = "archmd"))]
+        let architecture: Option<String> = None;
 
         // Spawn one task per prompt, each guarded by a wall-clock timeout.
         // AbortHandles are stored in a guard so that if the parent future is
@@ -95,18 +101,9 @@ Returns a summary of findings for each prompt."
             let prompt_text = prompt_text.clone();
             let model = client.completion_model(model_name.clone());
             let event_tx = subagent_event_tx.clone();
+            let architecture = architecture.clone();
             let join_handle = tokio::spawn(async move {
                 let work = async {
-                    let architecture = with_config(|cfg| {
-                        #[cfg(feature = "archmd")]
-                        {
-                            cfg.architecture.clone()
-                        }
-                        #[cfg(not(feature = "archmd"))]
-                        {
-                            None::<String>
-                        }
-                    });
                     let agent = builder::build_explore_agent(model, max_turns, architecture).await;
                     agent
                         .run_subagent(&prompt_text, max_turns, event_tx.as_ref())
@@ -127,6 +124,8 @@ Returns a summary of findings for each prompt."
         }
 
         // Abort guard — if this future is dropped, all subagents are cancelled.
+        // Created after all spawns complete: the window between first spawn and
+        // guard creation is negligible in practice (no .await in between).
         let _guard = SubagentGuard {
             handles: abort_handles,
         };
@@ -137,7 +136,18 @@ Returns a summary of findings for each prompt."
         for r in results {
             match r {
                 Ok((i, prompt_text, Ok(response))) => {
-                    outputs.push((i, prompt_text, truncate_response(&response)));
+                    outputs.push((
+                        i,
+                        prompt_text,
+                        truncate_cjk(
+                            &response,
+                            MAX_SUBAGENT_RESPONSE_BYTES,
+                            &format!(
+                                "\n…[subagent response truncated at {}B]",
+                                MAX_SUBAGENT_RESPONSE_BYTES
+                            ),
+                        ),
+                    ));
                 }
                 Ok((i, prompt_text, Err(e))) => {
                     outputs.push((i, prompt_text, e));
@@ -156,25 +166,6 @@ Returns a summary of findings for each prompt."
 
         Ok(combine_results(&outputs))
     }
-}
-
-/// Truncate a subagent response to at most `max` bytes on a UTF-8 char boundary,
-/// appending a marker so the parent agent knows the result was capped.
-pub(crate) fn truncate_response(s: &str) -> String {
-    let max = MAX_SUBAGENT_RESPONSE_BYTES;
-    if s.len() <= max {
-        return s.to_string();
-    }
-    let mut cut = max;
-    while cut > 0 && !s.is_char_boundary(cut) {
-        cut -= 1;
-    }
-    let mut out = s[..cut].to_string();
-    out.push_str(&format!(
-        "\n…[subagent response truncated at {}B]",
-        MAX_SUBAGENT_RESPONSE_BYTES
-    ));
-    out
 }
 
 /// Combine per-task outputs into a single Markdown string, ordered by the
