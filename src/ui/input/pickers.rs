@@ -550,7 +550,7 @@ pub fn handle_prompt_picker_key(
     picker: &mut PromptPicker,
     key: KeyEvent,
 ) -> bool {
-    let prefix = "/prompt ";
+    let prefix = picker.prefix;
     let prefix_len = prefix.len();
     match key.code {
         KeyCode::Char(c)

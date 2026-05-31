@@ -123,6 +123,16 @@ impl InputEditor {
         self.picker = Some(Picker::Prompt(picker));
     }
 
+    pub fn start_dot_picker(&mut self) {
+        let mut picker = PromptPicker::with_prefix(".");
+        picker.set_monochrome(self.monochrome);
+        if !self.prompt_names.is_empty() {
+            picker.set_items(self.prompt_names.clone());
+        }
+        picker.activate();
+        self.picker = Some(Picker::Prompt(picker));
+    }
+
     pub fn start_theme_picker(&mut self) {
         let mut picker = ThemePicker::new();
         picker.set_monochrome(self.monochrome);
@@ -437,6 +447,13 @@ impl InputEditor {
                 }
                 if c == '/' && self.cursor == 0 {
                     self.start_command_picker();
+                }
+                if c == '.' && self.cursor == 0 {
+                    self.buffer.insert(self.cursor, c);
+                    self.cursor += c.len_utf8();
+                    self.start_dot_picker();
+                    self.yank_pos = None;
+                    return None;
                 }
                 self.buffer.insert(self.cursor, c);
                 self.cursor += c.len_utf8();

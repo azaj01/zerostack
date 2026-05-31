@@ -575,7 +575,9 @@ pub async fn run_interactive(
                                 renderer.write_line("", Color::White)?;
 
                                 if after_dot.is_empty() {
-                                    input.start_prompt_picker();
+                                    input.buffer = ".".into();
+                                    input.cursor = 1;
+                                    input.start_dot_picker();
                                 } else if let Some((prompt_name, msg)) = after_dot.split_once(char::is_whitespace) {
                                     let prompt_name = prompt_name.trim();
                                     let msg = msg.trim();
