@@ -103,6 +103,11 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
+    if cli.resume && cli.session.is_none() {
+        print_sessions();
+        return Ok(());
+    }
+
     let _ = docs::ensure_global();
     let mut context = context::load(cli.resolve_no_context_files(&cfg));
 
@@ -193,35 +198,6 @@ async fn main() -> anyhow::Result<()> {
         session.output_token_cost = qm.output_token_cost;
     }
 
-    if cli.resume && cli.session.is_none() && !cli.continue_session {
-        let sessions = session::storage::find_recent_sessions(10)?;
-        if sessions.is_empty() {
-            eprintln!("No recent sessions found.");
-        } else {
-            eprintln!("Recent sessions:");
-            for (i, s) in sessions.iter().enumerate() {
-                let preview = s
-                    .messages
-                    .last()
-                    .map(|m| {
-                        let truncated: String = m.content.chars().take(60).collect();
-                        truncated
-                    })
-                    .unwrap_or_default();
-                eprintln!(
-                    "  {}. {}  [{} msgs] {}",
-                    i + 1,
-                    &s.id[..8],
-                    s.messages.len(),
-                    preview
-                );
-            }
-            if let Some(s) = sessions.into_iter().next() {
-                session = s;
-            }
-        }
-    }
-
     if cli.continue_session
         && cli.session.is_none()
         && let Ok(sessions) = session::storage::find_recent_sessions(1)
@@ -231,7 +207,34 @@ async fn main() -> anyhow::Result<()> {
     }
 
     if let Some(session_id) = &cli.session {
-        session = session::storage::load_session(session_id)?;
+        let sessions = session::storage::find_sessions_by_prefix(session_id)?;
+        if sessions.is_empty() {
+            anyhow::bail!("no session matching '{}'", session_id);
+        } else if sessions.len() == 1 {
+            session = sessions.into_iter().next().unwrap();
+        } else {
+            eprintln!("multiple sessions match '{}':", session_id);
+            for s in &sessions {
+                let preview = s
+                    .messages
+                    .last()
+                    .map(|m| {
+                        let truncated: String = m.content.chars().take(40).collect();
+                        truncated
+                    })
+                    .unwrap_or_default();
+                let time = crate::ui::events::format_time(&s.updated_at);
+                eprintln!(
+                    "  {}  {}  {}msgs  {}  {}",
+                    &s.id[..8],
+                    time,
+                    s.messages.len(),
+                    s.model,
+                    preview
+                );
+            }
+            anyhow::bail!("be more specific with the session ID prefix");
+        }
     }
 
     let client = provider::create_client(
@@ -462,6 +465,42 @@ fn print_section(title: &str, entries: &[(&str, String)]) {
         println!("  {k:<width$}  {v}");
     }
     println!();
+}
+
+fn print_sessions() {
+    let sessions = match session::storage::find_recent_sessions(20) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("error listing sessions: {e}");
+            return;
+        }
+    };
+    if sessions.is_empty() {
+        println!("no saved sessions");
+    } else {
+        println!("recent sessions ({}):", sessions.len());
+        for s in &sessions {
+            let last = s
+                .messages
+                .last()
+                .map(|m| {
+                    let truncated: String = m.content.chars().take(30).collect();
+                    format!("...{truncated}")
+                })
+                .unwrap_or_default();
+            let time = crate::ui::events::format_time(&s.updated_at);
+            println!(
+                "  {}  {}  {}msgs  {}  {}",
+                &s.id[..8],
+                time,
+                s.messages.len(),
+                s.model,
+                last
+            );
+        }
+        println!();
+        println!("Use --session <id> to load a session by its ID prefix.");
+    }
 }
 
 fn print_config(cli: &cli::Cli, cfg: &config::Config) {

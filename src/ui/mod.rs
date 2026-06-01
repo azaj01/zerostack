@@ -1,6 +1,6 @@
 mod cmd_picker;
 mod event_handler;
-mod events;
+pub(crate) mod events;
 pub(crate) mod input;
 mod markdown;
 mod permission_handler;

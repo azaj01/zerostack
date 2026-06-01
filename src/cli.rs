@@ -16,10 +16,14 @@ pub struct Cli {
     #[arg(short = 'c', long = "continue", help = "Continue most recent session")]
     pub continue_session: bool,
 
-    #[arg(short = 'r', long = "resume", help = "Browse and select a session")]
+    #[arg(
+        short = 'r',
+        long = "resume",
+        help = "List recent sessions"
+    )]
     pub resume: bool,
 
-    #[arg(long = "session", help = "Use specific session file or ID")]
+    #[arg(long = "session", help = "Load session by ID prefix")]
     pub session: Option<String>,
 
     #[arg(long = "no-session", help = "Ephemeral mode, do not save")]

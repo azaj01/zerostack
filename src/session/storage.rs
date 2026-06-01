@@ -40,6 +40,7 @@ pub fn save_session(session: &Session) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn load_session(id: &str) -> anyhow::Result<Session> {
     let dir = session_dir();
     let path = dir.join(format!("{}.json", id));
