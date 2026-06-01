@@ -60,6 +60,7 @@ pub struct ContextFiles {
     pub current_prompt_name: Option<String>,
     pub themes: HashMap<String, String>,
     pub current_theme_name: Option<String>,
+    pub extra_files: Vec<std::path::PathBuf>,
     #[cfg(feature = "memory")]
     pub memory: Option<String>,
     #[cfg(feature = "archmd")]
@@ -114,6 +115,7 @@ pub fn load(no_context_files: bool) -> ContextFiles {
         current_prompt_name: None,
         themes: theme_map,
         current_theme_name: theme_name,
+        extra_files: Vec::new(),
         #[cfg(feature = "memory")]
         memory,
         #[cfg(feature = "archmd")]

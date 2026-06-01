@@ -4,8 +4,25 @@ pub fn handle(_parts: &[&str], ctx: &mut SlashCtx<'_>) {
     write_ok(ctx.renderer, "commands:");
     write_result(
         ctx.renderer,
-        "  /model [name]          show or switch model",
+        "  /add [path]            add file(s) to context",
     );
+    write_result(
+        ctx.renderer,
+        "  /drop <path>           remove file from context",
+    );
+    write_result(
+        ctx.renderer,
+        "  /drop-all              remove all added files from context",
+    );
+    write_result(
+        ctx.renderer,
+        "  /init [force]          create AGENTS.md for this project",
+    );
+    write_result(
+        ctx.renderer,
+        "  /memory [status|search|read|write|editor|clear]  manage memory",
+    );
+    write_result(ctx.renderer, "  /clear [/new]          clear screen");
     write_result(
         ctx.renderer,
         "  /provider [name]       show or switch provider",

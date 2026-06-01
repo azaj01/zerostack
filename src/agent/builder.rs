@@ -73,6 +73,19 @@ pub async fn build_agent_inner<M: CompletionModel + 'static>(
         + context.memory.as_deref().map_or(0, |m| m.len() + 8) // "\n\n---\n\n" + content
         + crate::agent::prompt::MEMORY_TOOLS_PROMPT.len();
 
+    // Add extra files content to preamble budget
+    let extra_files_content: Vec<String> = context
+        .extra_files
+        .iter()
+        .filter_map(|p| {
+            std::fs::read_to_string(p)
+                .ok()
+                .map(|content| format!("Content of {}:\n{}", p.display(), content))
+        })
+        .collect();
+    let extra_files_len: usize = extra_files_content.iter().map(|s| s.len() + 2).sum();
+    let total_len = total_len + extra_files_len;
+
     let mut preamble = String::with_capacity(total_len);
     preamble.push_str(reasoning_prefix);
     preamble.push_str(SYSTEM_PROMPT);
@@ -94,6 +107,10 @@ pub async fn build_agent_inner<M: CompletionModel + 'static>(
     if !cwd.is_empty() {
         preamble.push_str("\n\nCurrent working directory: ");
         preamble.push_str(&cwd);
+    }
+    for content in &extra_files_content {
+        preamble.push_str("\n\n---\n\n");
+        preamble.push_str(content);
     }
     #[cfg(feature = "memory")]
     {

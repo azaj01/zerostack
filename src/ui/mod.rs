@@ -839,6 +839,43 @@ pub async fn run_interactive(
                                             )?;
                                         }
                                     }
+                                    Err(e) if e.to_string().starts_with("DEFER_INIT:") => {
+                                        let prompt = e.to_string().strip_prefix("DEFER_INIT:").unwrap_or("").to_string();
+                                        #[cfg(feature = "mcp")]
+                                        let mcp_ref = ensure_mcp_manager(&mut mcp_manager, cfg).await;
+                                        ensure_agent(
+                                            &mut agent, &client, session, cli, cfg, context,
+                                            &permission, &ask_tx, &sandbox, reasoning_enabled,
+                                            #[cfg(feature = "mcp")] mcp_ref,
+                                        ).await;
+                                        let history = crate::agent::runner::convert_history(session);
+                                        let runner = agent.as_ref().unwrap().clone().spawn_runner(prompt, history);
+                                        agent_rx = Some(runner.event_rx);
+                                        is_running = true;
+                                    }
+                                    Err(e) if e.to_string().starts_with("DEFER_EDITOR:") => {
+                                        let path = e.to_string().strip_prefix("DEFER_EDITOR:").unwrap_or("").to_string();
+                                        let editor = cfg.editor.clone()
+                                            .or_else(|| std::env::var("EDITOR").ok())
+                                            .unwrap_or_else(|| "editor".to_string());
+                                        let _ = crossterm::terminal::disable_raw_mode();
+                                        let mut stdout = std::io::stdout();
+                                        let _ = crossterm::ExecutableCommand::execute(&mut stdout, crossterm::event::DisableMouseCapture);
+                                        let _ = crossterm::ExecutableCommand::execute(&mut stdout, crossterm::terminal::LeaveAlternateScreen);
+                                        let _ = stdout.flush();
+                                        let _ = std::process::Command::new("sh")
+                                            .arg("-c")
+                                            .arg(format!("{} \"$1\"", editor))
+                                            .arg("sh")
+                                            .arg(&path)
+                                            .status();
+                                        let _ = crossterm::ExecutableCommand::execute(&mut stdout, crossterm::terminal::EnterAlternateScreen);
+                                        let _ = crossterm::ExecutableCommand::execute(&mut stdout, crossterm::terminal::Clear(crossterm::terminal::ClearType::All));
+                                        let _ = crossterm::ExecutableCommand::execute(&mut stdout, crossterm::event::EnableMouseCapture);
+                                        let _ = crossterm::terminal::enable_raw_mode();
+                                        render_session(&mut renderer, session, cli, cfg, context)?;
+                                        renderer.write_line(&format!("returned from editing {}", path), C_AGENT)?;
+                                    }
                                     Err(e) => {
                                         if e.downcast_ref::<std::io::Error>().is_some_and(|e: &std::io::Error| e.kind() == std::io::ErrorKind::Interrupted) {
                                             break;

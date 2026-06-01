@@ -8,6 +8,11 @@ use crossterm::terminal::Clear;
 use super::utils::resolve_color;
 
 const COMMANDS: &[&str] = &[
+    "/add",
+    "/drop",
+    "/drop-all",
+    "/init",
+    "/memory",
     "/model",
     "/models",
     "/models-add",

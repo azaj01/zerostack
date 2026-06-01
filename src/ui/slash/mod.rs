@@ -1,6 +1,9 @@
+mod add;
 mod content;
 mod features;
 mod help;
+mod init;
+mod memory;
 mod providers;
 mod session;
 mod settings;
@@ -290,6 +293,9 @@ pub async fn handle_slash(
             help::handle(&parts, &mut ctx);
             Ok(())
         }
+        "/add" | "/drop" | "/drop-all" => add::handle(&parts, &mut ctx).await,
+        "/init" => init::handle(&parts, &mut ctx).await,
+        "/memory" => memory::handle(&parts, &mut ctx).await,
         "/compress" | "/compact" | "/loop" | "/worktree" | "/wt-merge" | "/wt-exit" => {
             features::handle(&parts, &mut ctx).await
         }
