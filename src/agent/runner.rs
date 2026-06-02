@@ -1,6 +1,6 @@
 use compact_str::CompactString;
 use futures::StreamExt;
-use rig::agent::{Agent, MultiTurnStreamItem};
+use rig::agent::{Agent, MultiTurnStreamItem, StreamingResult};
 use rig::completion::{CompletionModel, Message};
 use rig::message::ToolResultContent;
 use rig::streaming::{StreamedAssistantContent, StreamedUserContent, StreamingChat};
@@ -41,6 +41,24 @@ pub fn convert_history(session: &Session) -> Vec<Message> {
     messages
 }
 
+async fn continue_prompt_injector<M, P>(
+    agent: &Agent<M, P>,
+    retry_prompt: &str,
+    retry_history: &[Message],
+    tool_interactions: &[Message],
+) -> StreamingResult<M::StreamingResponse>
+where
+    M: CompletionModel + 'static,
+    M::StreamingResponse: Send + Sync + Unpin + Clone + 'static,
+    P: rig::agent::PromptHook<M> + 'static,
+{
+    let mut new_history = retry_history.to_vec();
+    new_history.extend_from_slice(tool_interactions);
+    new_history.push(Message::user(retry_prompt.to_string()));
+    new_history.push(Message::assistant(String::new()));
+    agent.stream_chat("Please continue.", new_history).await
+}
+
 pub fn spawn_agent<M, P>(agent: Agent<M, P>, prompt: String, history: Vec<Message>) -> AgentRunner
 where
     M: CompletionModel + 'static,
@@ -53,19 +71,14 @@ where
     crate::extras::subagents::set_subagent_event_tx(event_tx.clone());
 
     let join = tokio::spawn(async move {
-        // Clone prompt and history so they're available for a potential retry
-        // when the model returns an empty final response.
         let retry_prompt = prompt.clone();
         let retry_history: Vec<Message> = history.clone();
+        let mut tool_interactions: Vec<Message> = Vec::new();
+        let mut last_tool_name: Option<String> = None;
 
         let mut stream = agent.stream_chat(prompt, history).await;
-        let mut last_tool_name: Option<String> = None;
-        let mut tool_interactions: Vec<Message> = Vec::new();
-        let mut retry_count = 0u8;
 
         loop {
-            let mut retrying = false;
-
             while let Some(item) = stream.next().await {
                 match item {
                     Ok(MultiTurnStreamItem::StreamAssistantItem(
@@ -119,19 +132,17 @@ where
                         let response_text = res.response();
                         let usage = res.usage();
 
-                        if response_text.is_empty() {
-                            retrying = true;
-                            break;
+                        if !response_text.is_empty() {
+                            let _ = event_tx
+                                .send(AgentEvent::Done {
+                                    response: CompactString::from(response_text),
+                                    input_tokens: usage.input_tokens,
+                                    output_tokens: usage.output_tokens,
+                                })
+                                .await;
+                            return;
                         }
-
-                        let _ = event_tx
-                            .send(AgentEvent::Done {
-                                response: CompactString::from(response_text),
-                                input_tokens: usage.input_tokens,
-                                output_tokens: usage.output_tokens,
-                            })
-                            .await;
-                        return;
+                        break;
                     }
                     Err(e) => {
                         let _ = event_tx
@@ -143,22 +154,9 @@ where
                 }
             }
 
-            if retrying && retry_count < 2 {
-                retry_count += 1;
-                let mut new_history = retry_history.clone();
-                new_history.extend(tool_interactions.clone());
-                new_history.push(Message::user(retry_prompt.clone()));
-                new_history.push(Message::assistant(String::new()));
-                stream = agent.stream_chat("Please continue.", new_history).await;
-                continue;
-            }
-
-            let _ = event_tx
-                .send(AgentEvent::Error(CompactString::new(
-                    "Stream ended without final response",
-                )))
-                .await;
-            return;
+            stream =
+                continue_prompt_injector(&agent, &retry_prompt, &retry_history, &tool_interactions)
+                    .await;
         }
     });
 
