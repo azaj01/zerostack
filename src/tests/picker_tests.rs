@@ -1,5 +1,47 @@
+use crate::ui::cmd_picker::ModelsPicker;
 use crate::ui::picker::FilePicker;
 use std::path::PathBuf;
+
+#[test]
+fn test_models_picker_starts_on_quick_group() {
+    let mut picker = ModelsPicker::new();
+    picker.set_groups(vec!["fast".to_string()], vec!["claude-opus-4-7".to_string()]);
+    picker.activate();
+    assert_eq!(picker.matches, vec!["fast".to_string()]);
+}
+
+#[test]
+fn test_models_picker_tab_toggles_to_provider_group() {
+    let mut picker = ModelsPicker::new();
+    picker.set_groups(vec!["fast".to_string()], vec!["claude-opus-4-7".to_string()]);
+    picker.activate();
+    picker.toggle_group();
+    assert_eq!(picker.matches, vec!["claude-opus-4-7".to_string()]);
+}
+
+#[test]
+fn test_models_picker_starts_on_provider_when_quick_empty() {
+    let mut picker = ModelsPicker::new();
+    picker.set_groups(Vec::new(), vec!["claude-opus-4-7".to_string()]);
+    picker.activate();
+    assert_eq!(picker.matches, vec!["claude-opus-4-7".to_string()]);
+}
+
+#[test]
+fn test_models_picker_fuzzy_subsequence_match() {
+    let mut picker = ModelsPicker::new();
+    picker.set_groups(
+        Vec::new(),
+        vec!["claude-opus-4-7".to_string(), "gpt-4o-mini".to_string()],
+    );
+    picker.activate();
+    // "o47" is a subsequence of "claude-opus-4-7" but not "gpt-4o-mini"
+    for c in "o47".chars() {
+        picker.char_input(c);
+    }
+    assert_eq!(picker.selected_name(), Some("claude-opus-4-7"));
+    assert!(!picker.matches.iter().any(|m| m == "gpt-4o-mini"));
+}
 
 #[test]
 fn test_backspace_empty_query() {

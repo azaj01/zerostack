@@ -1,4 +1,4 @@
-mod cmd_picker;
+pub(crate) mod cmd_picker;
 mod event_handler;
 pub(crate) mod events;
 pub(crate) mod input;
@@ -303,7 +303,23 @@ pub async fn run_interactive(
         input.set_editor(editor.clone());
     }
     input.set_quick_model_names(config::quick_models_map(cfg).into_keys().collect());
+    {
+        // fixed built-in providers plus any custom gateways from config
+        let mut providers: Vec<String> = ["anthropic", "openai", "gemini", "openrouter", "ollama"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        providers.extend(cfg.custom_providers_map().keys().cloned());
+        input.set_provider_names(providers);
+    }
     input.load_global_history();
+    // pre-warm the current provider's live models into the picker (best-effort)
+    {
+        let provider = session.provider.to_string();
+        let is_custom = cfg.custom_providers_map().contains_key(&provider);
+        let ids = crate::ui::slash::warm_model_cache(&provider, is_custom, &client, cli, cfg).await;
+        input.set_live_model_names(ids);
+    }
     let mut is_running = false;
     let mut agent_rx: Option<mpsc::Receiver<AgentEvent>> = None;
     // Abort handle for the single in-flight main run. Enforces "at most one main
@@ -874,6 +890,13 @@ pub async fn run_interactive(
                                 } else {
                                     handle_slash(&text, &mut agent, &mut client, &mut renderer, session, cli, cfg, context, &mut show_reasoning, &mut reasoning_enabled, &mut is_running, &mut input, &permission, &ask_tx, &mut todo_tools_enabled, &sandbox, #[cfg(feature = "loop")] &mut loop_state, #[cfg(feature = "mcp")] mcp_ref).await
                                 };
+                                // provider may have changed via /provider or /models — re-warm the picker's live list
+                                {
+                                    let provider = session.provider.to_string();
+                                    let is_custom = cfg.custom_providers_map().contains_key(&provider);
+                                    let ids = crate::ui::slash::warm_model_cache(&provider, is_custom, &client, cli, cfg).await;
+                                    input.set_live_model_names(ids);
+                                }
                                 match result {
                                 Err(e) if e.to_string().starts_with("DEFER_COMPRESS:") => {
                                     let err_msg = e.to_string();

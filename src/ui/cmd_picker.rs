@@ -366,7 +366,14 @@ impl PromptPicker {
                 "{}",
                 SetForegroundColor(self.color(Color::DarkGrey))
             )?;
-            write!(stdout, "no matches")?;
+            // The provider list is not exhaustive: built-ins plus configured custom
+            // gateways are shown, but a name typed here is still submitted as-is, so
+            // remind the user they can free-type a registered gateway name.
+            if self.prefix == "/provider " {
+                write!(stdout, "no matches  (type a registered custom gateway name)")?;
+            } else {
+                write!(stdout, "no matches")?;
+            }
             write!(stdout, "{}", ResetColor)?;
             stdout.flush()?;
             return Ok(());
@@ -413,13 +420,68 @@ impl PromptPicker {
     }
 }
 
+fn fuzzy_score(item: &str, query: &str) -> Option<i32> {
+    if query.is_empty() {
+        return Some(0);
+    }
+    let item_l = item.to_lowercase();
+    let query_l = query.to_lowercase();
+    let is_boundary = |bytes: &[u8], pos: usize| -> bool {
+        pos == 0 || matches!(bytes.get(pos - 1), Some(b'-' | b'.' | b'/' | b'_' | b' ' | b':'))
+    };
+
+    // Tier 1: contiguous substring wins decisively over any scattered subsequence
+    // (so "gemini" ranks google/gemini-* above openai/gpt-…-mini).
+    if let Some(pos) = item_l.find(&query_l) {
+        let mut score = 1000;
+        if is_boundary(item_l.as_bytes(), pos) {
+            score += 200;
+        }
+        if pos == 0 {
+            score += 100;
+        }
+        score -= pos as i32; // earlier match better
+        score -= (item_l.chars().count() / 4) as i32; // shorter id better
+        return Some(score);
+    }
+
+    // Tier 2: scattered subsequence fallback (low band, never beats a substring)
+    let chars: Vec<char> = item_l.chars().collect();
+    let mut score = 0i32;
+    let mut idx = 0usize;
+    let mut last: Option<usize> = None;
+    for qc in query_l.chars() {
+        let mut pos = None;
+        while idx < chars.len() {
+            if chars[idx] == qc {
+                pos = Some(idx);
+                break;
+            }
+            idx += 1;
+        }
+        let pos = pos?;
+        if last == Some(pos.wrapping_sub(1)) {
+            score += 5;
+        }
+        if pos == 0 || matches!(chars.get(pos - 1), Some('-' | '.' | '/' | '_' | ' ' | ':')) {
+            score += 3;
+        }
+        last = Some(pos);
+        idx = pos + 1;
+    }
+    score -= (chars.len() / 20) as i32;
+    Some(score)
+}
+
 pub struct ModelsPicker {
     pub active: bool,
     pub query: String,
     pub cursor: usize,
     pub matches: Vec<String>,
     pub selected: usize,
-    items: Vec<String>,
+    quick: Vec<String>,
+    provider: Vec<String>,
+    group: usize,
     monochrome: bool,
 }
 
@@ -431,7 +493,9 @@ impl ModelsPicker {
             cursor: 0,
             matches: Vec::new(),
             selected: 0,
-            items: Vec::new(),
+            quick: Vec::new(),
+            provider: Vec::new(),
+            group: 0,
             monochrome: false,
         }
     }
@@ -440,8 +504,9 @@ impl ModelsPicker {
         self.monochrome = monochrome;
     }
 
-    pub fn set_items(&mut self, items: Vec<String>) {
-        self.items = items;
+    pub fn set_groups(&mut self, quick: Vec<String>, provider: Vec<String>) {
+        self.quick = quick;
+        self.provider = provider;
     }
 
     fn color(&self, color: Color) -> Color {
@@ -454,11 +519,23 @@ impl ModelsPicker {
         self.cursor = 0;
         self.matches.clear();
         self.selected = 0;
+        // start on Provider if there are no quick presets to show
+        self.group = if self.quick.is_empty() && !self.provider.is_empty() {
+            1
+        } else {
+            0
+        };
         self.filter();
     }
 
     pub fn deactivate(&mut self) {
         self.active = false;
+    }
+
+    pub fn toggle_group(&mut self) {
+        self.group = 1 - self.group;
+        self.selected = 0;
+        self.filter();
     }
 
     pub fn char_input(&mut self, c: char) {
@@ -488,14 +565,17 @@ impl ModelsPicker {
     }
 
     fn filter(&mut self) {
-        let query_lower = self.query.to_lowercase();
-        self.matches = self
-            .items
+        let src = if self.group == 0 {
+            &self.quick
+        } else {
+            &self.provider
+        };
+        let mut scored: Vec<(i32, &String)> = src
             .iter()
-            .filter(|name| name.to_lowercase().contains(&query_lower))
-            .take(50)
-            .cloned()
+            .filter_map(|n| fuzzy_score(n, &self.query).map(|s| (s, n)))
             .collect();
+        scored.sort_by(|a, b| b.0.cmp(&a.0));
+        self.matches = scored.into_iter().take(50).map(|(_, n)| n.clone()).collect();
         self.selected = 0;
     }
 
@@ -526,7 +606,35 @@ impl ModelsPicker {
         let (cols, rows) = crossterm::terminal::size()?;
         let mut stdout = std::io::stdout();
 
-        let max_items = (rows.saturating_sub(4)).min(10) as usize;
+        let max_items = (rows.saturating_sub(5)).min(10) as usize;
+        let list_height = max_items.min(self.matches.len().max(1));
+        let top_row = rows.saturating_sub(3).saturating_sub(list_height as u16);
+
+        // tab header showing the two groups (skip on very short terminals)
+        if rows >= 8 {
+            let header_row = top_row.saturating_sub(1);
+            stdout.execute(MoveTo(0, header_row))?;
+            write!(
+                stdout,
+                "{}",
+                Clear(crossterm::terminal::ClearType::CurrentLine)
+            )?;
+            let tab = |label: &str, count: usize, active: bool| {
+                if active {
+                    format!("[{} {}]", label, count)
+                } else {
+                    format!(" {} {} ", label, count)
+                }
+            };
+            write!(stdout, "{}", SetForegroundColor(self.color(Color::DarkGrey)))?;
+            write!(
+                stdout,
+                "{}  {}   (Tab to switch)",
+                tab("Quick", self.quick.len(), self.group == 0),
+                tab("Provider", self.provider.len(), self.group == 1)
+            )?;
+            write!(stdout, "{}", ResetColor)?;
+        }
 
         if self.matches.is_empty() {
             let r = rows.saturating_sub(3);
@@ -542,14 +650,11 @@ impl ModelsPicker {
             return Ok(());
         }
 
-        let list_height = max_items.min(self.matches.len());
         let start_idx = self
             .selected
             .saturating_sub(list_height / 2)
             .min(self.matches.len().saturating_sub(list_height));
         let end_idx = (start_idx + list_height).min(self.matches.len());
-
-        let top_row = rows.saturating_sub(3).saturating_sub(list_height as u16);
 
         for i in start_idx..end_idx {
             let render_row = top_row + (i - start_idx) as u16;
