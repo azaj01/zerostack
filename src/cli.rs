@@ -232,11 +232,11 @@ impl Cli {
     }
 
     pub fn resolve_max_tokens(&self, cfg: &config::Config) -> u64 {
-        self.max_tokens.or(cfg.max_tokens).unwrap_or(8192)
+        self.max_tokens.or(cfg.max_tokens).unwrap_or(16384)
     }
 
     pub fn resolve_max_agent_turns(&self, cfg: &config::Config) -> usize {
-        self.max_agent_turns.or(cfg.max_agent_turns).unwrap_or(100)
+        self.max_agent_turns.or(cfg.max_agent_turns).unwrap_or(200)
     }
 
     pub fn resolve_no_context_files(&self, cfg: &config::Config) -> bool {

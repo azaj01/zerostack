@@ -31,17 +31,17 @@ Example (JSON):
 {
   "provider": "openrouter",
   "model": "deepseek/deepseek-v4-flash",
-  "max_tokens": 8192,
+  "max_tokens": 16384,
   "temperature": 0.7,
   "context_window": 128000,
   "reserve_tokens": 16384,
-  "keep_recent_tokens": 20000,
+  "keep_recent_tokens": 10000,
   "compact_enabled": true,
   "deny_repeated_reads": false,
   "default_prompt": "code",
   "default_permission_mode": "standard",
   "permission-modes": ["guarded", "standard", "yolo"],
-  "show_tool_details": false,
+  "show_tool_details": true,
   "sandbox": false,
   "quick_models": {
     "fast": {
@@ -94,17 +94,17 @@ The same config in TOML:
 ```toml
 provider = "openrouter"
 model = "deepseek/deepseek-v4-flash"
-max_tokens = 8192
+max_tokens = 16384
 temperature = 0.7
 context_window = 128000
 reserve_tokens = 16384
-keep_recent_tokens = 20000
+keep_recent_tokens = 10000
 compact_enabled = true
 edit_system = "similarity"
 default_prompt = "code"
 default_permission_mode = "standard"
 permission-modes = ["guarded", "standard", "yolo"]
-show_tool_details = false
+show_tool_details = true
 
 [quick_models.fast]
 provider = "openai"
@@ -140,14 +140,14 @@ Accepted top-level keys:
 | ------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `provider`                | string  | Provider name. Built-ins are `openrouter`, `openai`, `anthropic`, `gemini`/`google`, and `ollama`; custom provider aliases are also accepted. Default: `openrouter`.        |
 | `model`                   | string  | Model name. Default: `deepseek/deepseek-v4-flash`.                                                                                                                          |
-| `max_tokens`              | integer | Maximum response tokens. Default: `8192`.                                                                                                                                   |
-| `max_agent_turns`         | integer | Maximum agent turns per response. Default: `100`.                                                                                                                           |
+| `max_tokens`              | integer | Maximum response tokens. Default: `16384`.                                                                                                                                  |
+| `max_agent_turns`         | integer | Maximum agent turns per response. Default: `200`.                                                                                                                           |
 | `temperature`             | number  | Model temperature value. Only configurable via the `--temperature` CLI flag (`0.0` to `2.0`). Config-file value is parsed but not currently applied.                        |
 | `no_tools`                | boolean | Disable all tools. Default: `false`.                                                                                                                                        |
 | `no_context_files`        | boolean | Disable loading global/project `AGENTS.md`, `CLAUDE.md`, and `ARCHITECTURE.md` (if `archmd` feature enabled) context files. Default: `false`.                               |
 | `context_window`          | integer | Session context-window size used for status and auto-compaction. Default: `128000`.                                                                                         |
 | `reserve_tokens`          | integer | Tokens to reserve before compaction is triggered. Default: `16384`.                                                                                                         |
-| `keep_recent_tokens`      | integer | Approximate recent-token budget kept verbatim during compaction. Default: `20000`.                                                                                          |
+| `keep_recent_tokens`      | integer | Approximate recent-token budget kept verbatim during compaction. Default: `10000`.                                                                                          |
 | `max_text_file_size`      | integer | Maximum allowed file size in bytes for read/write tool operations. Default: `1048576` (1 MB).                                                                               |
 | `deny_repeated_reads`     | boolean | Block repeated reads of the same file section within a session until the file is edited or written. Default: `true`. Set to `false` to allow re-reading.                     |
 | `compact_enabled`         | boolean | Enable automatic conversation compaction. Default: `true`.                                                                                                                  |
@@ -165,7 +165,7 @@ Accepted top-level keys:
 | `permission-modes`        | array   | List of mode names that apply config-based rules. Default: `["guarded", "standard", "yolo"]`. Modes excluded from this list skip config rule matching entirely.             |
 | `sandbox`                 | boolean | Run bash commands in the bubblewrap sandbox. Default: `false`.                                                                                                              |
 | `default_permission_mode` | string  | Permission mode when no mode boolean/CLI flag is set. Accepts: `standard` (default), `restrictive`, `readonly`, `guarded`, `yolo`.                                          |
-| `show_tool_details`       | boolean | Show tool-result previews in the TUI. Default: `false`.                                                                                                                     |
+| `show_tool_details`       | boolean | Show tool-result previews in the TUI. Default: `true`.                                                                                                                      |
 | `default_prompt`          | string  | Prompt name to activate on startup. Default: `code`. If the prompt file has a `%%mode=<mode>` first-line directive, the security mode is set automatically (see Prompt directives below). |
 | `editor`                  | string  | Editor command for `Ctrl+G` (default: `$EDITOR` env var, then `editor`, then `nano`).                                                                                        |
 | `api_keys`                | object  | Map of provider names to API keys (e.g. `"openai": "sk-..."`). Used as fallback when the corresponding env var is not set.                                                   |

@@ -142,7 +142,7 @@ impl Config {
     }
 
     pub fn resolve_keep_recent_tokens(&self) -> u64 {
-        self.keep_recent_tokens.unwrap_or(20_000)
+        self.keep_recent_tokens.unwrap_or(10_000)
     }
 
     pub fn resolve_compact_enabled(&self) -> bool {

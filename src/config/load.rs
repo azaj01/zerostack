@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use compact_str::CompactString;
 
-use crate::config::{Config, QuickModelConfig};
+use crate::config::{Config, EditSystem, QuickModelConfig};
 #[cfg(feature = "mcp")]
 use crate::extras::mcp::config::McpServerConfig;
 use crate::session::storage;
@@ -129,8 +129,16 @@ pub fn save_quick_model(
 fn rich_default_config() -> Config {
     let mut cfg = Config::default();
     cfg.quick_models = Some(default_quick_models());
-    cfg.max_tokens = Some(8192);
+    cfg.provider = Some(CompactString::new("openrouter"));
+    cfg.model = Some(CompactString::new("deepseek/deepseek-v4-flash"));
+    cfg.max_tokens = Some(16384);
     cfg.context_window = Some(128_000);
+    cfg.compact_enabled = Some(true);
+    cfg.max_text_file_size = Some(1_048_576);
+    cfg.edit_system = Some(EditSystem::Similarity);
+    cfg.default_permission_mode = Some("standard".to_string());
+    cfg.default_prompt = Some(CompactString::new("code"));
+    cfg.show_tool_details = Some(true);
     cfg
 }
 

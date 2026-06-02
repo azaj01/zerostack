@@ -216,7 +216,7 @@ pub async fn handle_agent_event(
                     }
                 }
             } else {
-                let show_details = cfg.show_tool_details.unwrap_or(false);
+                let show_details = cfg.show_tool_details.unwrap_or(true);
                 if show_details {
                     let sanitized = sanitize_output(&output);
                     let char_count = sanitized.chars().count();

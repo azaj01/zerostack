@@ -192,7 +192,7 @@ async fn main() -> anyhow::Result<()> {
 
     #[cfg(feature = "subagents")]
     {
-        let task_max_turns = cfg.task_max_turns.unwrap_or(15);
+        let task_max_turns = cfg.task_max_turns.unwrap_or(20);
         let qm = config::quick_models_map(&cfg);
 
         // Resolve subagent model: subagent_model config > subagent_provider + model > deepseek-v4-flash quick model
