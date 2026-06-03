@@ -23,6 +23,11 @@ pub async fn handle(parts: &[&str], ctx: &mut SlashCtx<'_>) -> anyhow::Result<()
 static MODEL_CACHE: LazyLock<Mutex<HashMap<String, Vec<ModelEntry>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+/// Returns the provider's models.
+///
+/// Network is only touched on `refresh`, for custom gateways, or for built-in
+/// providers that aren't baked (e.g. ollama). Baked built-ins are served from
+/// the embedded catalog with no network call — this is what keeps startup instant.
 pub(crate) async fn fetch_models_cached(
     provider: &str,
     is_custom: bool,
@@ -33,7 +38,18 @@ pub(crate) async fn fetch_models_cached(
 ) -> anyhow::Result<Vec<ModelEntry>> {
     if !refresh {
         if let Some(hit) = MODEL_CACHE.lock().unwrap().get(provider).cloned() {
-            return Ok(hit); // guard dropped here, NOT across the await below
+            return Ok(hit); // guard dropped here, NOT across any await
+        }
+        // No cache yet: serve the baked catalog for built-in providers — no network.
+        if !is_custom
+            && let Some(mut models) = crate::models_catalog::catalog_entries(provider)
+        {
+            models.retain(crate::provider::is_agent_model);
+            MODEL_CACHE
+                .lock()
+                .unwrap()
+                .insert(provider.to_string(), models.clone());
+            return Ok(models);
         }
     }
     let mut models = if is_custom {
@@ -204,65 +220,81 @@ async fn handle_models(parts: &[&str], ctx: &mut SlashCtx<'_>) -> anyhow::Result
     }
 
     // ---- list mode (+ optional refresh) ----
-    let mut sorted: Vec<&String> = qm.keys().collect();
-    sorted.sort();
-    write_ok(
-        ctx.renderer,
-        format!(
-            "quick models (current: {} | {}):",
-            ctx.session.provider, ctx.session.model
-        ),
-    );
-    if sorted.is_empty() {
-        write_result(ctx.renderer, "  (none — add with /models-add)");
-    }
-    for name in &sorted {
-        let q = &qm[name.as_str()];
-        write_result(
-            ctx.renderer,
-            format!(
-                "  {}  ({} / {})  ${:.4}/M in  ${:.4}/M out",
-                name, q.provider, q.model, q.input_token_cost, q.output_token_cost
-            ),
-        );
-    }
-
     match fetch_models_cached(&provider, is_custom, ctx.client, ctx.cli, ctx.cfg, refresh).await {
-        Ok(models) if !models.is_empty() => {
-            write_ok(
-                ctx.renderer,
-                format!("available from {} ({}):", provider, models.len()),
-            );
-            const CAP: usize = 50;
-            for m in models.iter().take(CAP) {
-                let ctx_win = m
-                    .context_length
-                    .map(|c| format!("  [{}k ctx]", c / 1000))
-                    .unwrap_or_default();
-                let label = if m.display == m.id {
-                    m.id.clone()
-                } else {
-                    format!("{} ({})", m.display, m.id)
-                };
-                write_result(ctx.renderer, format!("  {}{}", label, ctx_win));
-            }
-            if models.len() > CAP {
+        Ok(models) => {
+            ctx.input.set_live_model_names(cached_model_ids(&provider));
+            if refresh {
+                // Explicit refresh: just confirm with a count overview — the picker
+                // already holds the full list, so don't dump it to the scrollback.
+                // Dim (DarkGrey), matching the "loaded AGENTS.md" startup notices.
                 write_result(
                     ctx.renderer,
                     format!(
-                        "  … {} more — type /models <filter> or use the picker",
-                        models.len() - CAP
+                        "model list refreshed — quick models: {}, {} models: {}",
+                        qm.len(),
+                        provider,
+                        models.len()
                     ),
                 );
+            } else {
+                // Full listing: quick models, then the provider's available models.
+                let mut sorted: Vec<&String> = qm.keys().collect();
+                sorted.sort();
+                write_ok(
+                    ctx.renderer,
+                    format!(
+                        "quick models (current: {} | {}):",
+                        ctx.session.provider, ctx.session.model
+                    ),
+                );
+                if sorted.is_empty() {
+                    write_result(ctx.renderer, "  (none — add with /models-add)");
+                }
+                for name in &sorted {
+                    let q = &qm[name.as_str()];
+                    write_result(
+                        ctx.renderer,
+                        format!(
+                            "  {}  ({} / {})  ${:.4}/M in  ${:.4}/M out",
+                            name, q.provider, q.model, q.input_token_cost, q.output_token_cost
+                        ),
+                    );
+                }
+                if !models.is_empty() {
+                    write_ok(
+                        ctx.renderer,
+                        format!("available from {} ({}):", provider, models.len()),
+                    );
+                    const CAP: usize = 50;
+                    for m in models.iter().take(CAP) {
+                        let ctx_win = m
+                            .context_length
+                            .map(|c| format!("  [{}k ctx]", c / 1000))
+                            .unwrap_or_default();
+                        let label = if m.display == m.id {
+                            m.id.clone()
+                        } else {
+                            format!("{} ({})", m.display, m.id)
+                        };
+                        write_result(ctx.renderer, format!("  {}{}", label, ctx_win));
+                    }
+                    if models.len() > CAP {
+                        write_result(
+                            ctx.renderer,
+                            format!(
+                                "  … {} more — type /models <filter> or use the picker",
+                                models.len() - CAP
+                            ),
+                        );
+                    }
+                }
             }
-            ctx.input.set_live_model_names(cached_model_ids(&provider));
-        }
-        Ok(_) => {
-            ctx.input.set_live_model_names(cached_model_ids(&provider));
         }
         Err(e) => {
             tracing::debug!("model listing failed for {}: {}", provider, e);
-            if is_custom {
+            if refresh {
+                write_error(ctx.renderer, format!("model list refresh failed: {}", e));
+            } else if is_custom {
                 write_result(
                     ctx.renderer,
                     "  (live model list unavailable; type the model id directly)",

@@ -7,6 +7,7 @@ mod docs;
 mod event;
 mod extras;
 mod fs;
+mod models_catalog;
 mod permission;
 mod pricing;
 mod provider;

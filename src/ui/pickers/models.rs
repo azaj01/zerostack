@@ -170,7 +170,7 @@ impl ModelsPicker {
             )?;
             write!(
                 stdout,
-                "{}  {}   (Tab to switch)",
+                "{}  {}   (Tab to switch · /models refresh for the latest)",
                 tab("Quick", self.quick.len(), self.group == 0),
                 tab("Provider", self.provider.len(), self.group == 1)
             )?;
