@@ -25,6 +25,7 @@ use clap::Parser;
 use session::MessageRole;
 
 use crate::agent::tools;
+use crate::extras::status_signals::StatusSignals;
 use crate::permission::SecurityMode;
 use crate::permission::ask::AskSender;
 use crate::permission::checker::{PermCheck, PermissionChecker};
@@ -269,6 +270,10 @@ async fn main() -> anyhow::Result<()> {
     let edit_system = cli.resolve_edit_system(&cfg);
     tools::set_edit_system(edit_system);
     tools::set_deny_repeated_reads(cfg.deny_repeated_reads.unwrap_or(true));
+    #[cfg(feature = "status-signals")]
+    let status_signals = cli.status_socket.clone().map(StatusSignals::new);
+    #[cfg(not(feature = "status-signals"))]
+    let status_signals: Option<StatusSignals> = None;
     let (permission, ask_tx, ask_rx) = build_permission_checker(&cli, &cfg);
 
     let completion_model = client.completion_model(model.to_string());
@@ -501,9 +506,16 @@ async fn main() -> anyhow::Result<()> {
                 None,
             )
             .await;
-            let response = agent
+            if let Some(ss) = status_signals.as_ref() {
+                ss.send_start();
+            }
+            let response_result = agent
                 .run_print(&msg, cli.resolve_max_agent_turns(&cfg), cli.pure_stdout)
-                .await?;
+                .await;
+            if let Some(ss) = status_signals.as_ref() {
+                ss.send_stop();
+            }
+            let response = response_result?;
             if !cli.no_session {
                 session.add_message(MessageRole::User, &msg);
                 session.add_message(MessageRole::Assistant, &response);
@@ -532,7 +544,7 @@ async fn main() -> anyhow::Result<()> {
                 None,
             )
             .await;
-            return run_headless_loop(agent, &cli, &cfg, &context).await;
+            return run_headless_loop(agent, &cli, &cfg, &context, status_signals).await;
         }
 
         if !cli.resolve_no_tools(&cfg)
@@ -560,6 +572,7 @@ async fn main() -> anyhow::Result<()> {
             ask_rx,
             sandbox,
             arch_msg,
+            status_signals,
         )
         .await?;
     }
@@ -696,6 +709,7 @@ async fn run_headless_loop(
     cli: &cli::Cli,
     cfg: &config::Config,
     _context: &context::ContextFiles,
+    status_signals: Option<StatusSignals>,
 ) -> anyhow::Result<()> {
     use std::path::PathBuf;
     use uuid::Uuid;
@@ -742,12 +756,23 @@ async fn run_headless_loop(
         eprintln!("=== {} ===", state.iteration_label());
         eprintln!();
 
+        if let Some(ss) = status_signals.as_ref() {
+            ss.send_start();
+        }
         let response = match agent
             .run_print(&iteration_prompt, cli.resolve_max_agent_turns(cfg), false)
             .await
         {
-            Ok(r) => r,
+            Ok(r) => {
+                if let Some(ss) = status_signals.as_ref() {
+                    ss.send_stop();
+                }
+                r
+            }
             Err(e) => {
+                if let Some(ss) = status_signals.as_ref() {
+                    ss.send_stop();
+                }
                 eprintln!("[loop] error in iteration {}: {}", state.iteration, e);
                 break;
             }

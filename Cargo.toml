@@ -12,6 +12,7 @@ keywords = ["ai", "cli", "dev"]
 
 [features]
 default = ['loop', 'git-worktree', 'mcp', 'subagents', 'archmd']
+status-signals = []
 loop = []
 git-worktree = []
 mcp = [

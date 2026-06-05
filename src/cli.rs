@@ -195,6 +195,13 @@ pub struct Cli {
     )]
     pub wt_force: bool,
 
+    #[cfg(feature = "status-signals")]
+    #[arg(
+        long = "status-socket",
+        help = "Unix socket path for status signals (start/stop messages)"
+    )]
+    pub status_socket: Option<String>,
+
     #[arg(help = "Prompt message(s)")]
     pub message: Vec<String>,
 }

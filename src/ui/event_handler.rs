@@ -9,6 +9,7 @@ use crate::context::ContextFiles;
 use crate::event::AgentEvent;
 #[cfg(feature = "mcp")]
 use crate::extras::mcp::McpClientManager;
+use crate::extras::status_signals::StatusSignals;
 use crate::permission::ask::AskSender;
 use crate::permission::checker::PermCheck;
 use crate::provider::{AnyAgent, AnyClient};
@@ -109,6 +110,7 @@ pub async fn handle_agent_event(
     permission: &Option<PermCheck>,
     ask_tx: &Option<AskSender>,
     sandbox: &Sandbox,
+    status_signals: &Option<StatusSignals>,
     #[cfg(feature = "loop")] loop_state: &mut Option<crate::extras::r#loop::LoopState>,
     #[cfg(feature = "git-worktree")] wt_return_path: &mut Option<String>,
     #[cfg(feature = "mcp")] mcp_manager: Option<&crate::extras::mcp::McpClientManager>,
@@ -278,6 +280,7 @@ pub async fn handle_agent_event(
                 permission,
                 ask_tx,
                 sandbox,
+                status_signals,
                 #[cfg(feature = "loop")]
                 loop_state,
                 #[cfg(feature = "git-worktree")]
@@ -292,6 +295,9 @@ pub async fn handle_agent_event(
             let safe = sanitize_output(&e);
             renderer.write_line(&format!("error: {}", safe), C_ERROR)?;
             *is_running = false;
+            if let Some(ss) = status_signals.as_ref() {
+                ss.send_stop();
+            }
             *agent_rx = None;
             *agent_line_started = false;
             response_buf.clear();
@@ -323,6 +329,7 @@ async fn handle_agent_done(
     permission: &Option<PermCheck>,
     ask_tx: &Option<AskSender>,
     sandbox: &Sandbox,
+    status_signals: &Option<StatusSignals>,
     #[cfg(feature = "loop")] loop_state: &mut Option<crate::extras::r#loop::LoopState>,
     #[cfg(feature = "git-worktree")] wt_return_path: &mut Option<String>,
     #[cfg(feature = "mcp")] mcp_manager: Option<&crate::extras::mcp::McpClientManager>,
@@ -405,6 +412,9 @@ async fn handle_agent_done(
         renderer.write_line(&format!("warning: failed to save session: {}", e), C_ERROR)?;
     }
     *is_running = false;
+    if let Some(ss) = status_signals.as_ref() {
+        ss.send_stop();
+    }
     *agent_rx = None;
 
     #[cfg(feature = "loop")]
@@ -446,6 +456,9 @@ async fn handle_agent_done(
                 .spawn_runner(prompt, Vec::new());
             *agent_rx = Some(runner.event_rx);
             *is_running = true;
+            if let Some(ss) = status_signals.as_ref() {
+                ss.send_start();
+            }
             *loop_label = Some(ls.iteration_label());
             renderer.write_line(
                 &format!("[loop] launching {}", ls.iteration_label()),

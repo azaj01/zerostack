@@ -28,6 +28,7 @@ use crate::context::ContextFiles;
 use crate::event::{AgentEvent, UserEvent};
 #[cfg(feature = "mcp")]
 use crate::extras::mcp::McpClientManager;
+use crate::extras::status_signals::StatusSignals;
 use crate::permission;
 use crate::permission::ask::{AskReceiver, AskSender};
 use crate::permission::checker::PermCheck;
@@ -240,6 +241,7 @@ async fn start_main_run(
     agent_rx: &mut Option<mpsc::Receiver<AgentEvent>>,
     main_abort: &mut Option<tokio::task::AbortHandle>,
     is_running: &mut bool,
+    status_signals: &Option<StatusSignals>,
     #[cfg(feature = "mcp")] mcp_manager: &mut Option<McpClientManager>,
 ) {
     #[cfg(feature = "mcp")]
@@ -268,6 +270,9 @@ async fn start_main_run(
     *agent_rx = Some(runner.event_rx);
     *main_abort = Some(runner.abort_handle);
     *is_running = true;
+    if let Some(ss) = status_signals.as_ref() {
+        ss.send_start();
+    }
     session.add_message(MessageRole::User, text);
     if !cli.no_session {
         let _ = crate::session::chat_history::append_entry(
@@ -292,6 +297,7 @@ pub async fn run_interactive(
     mut ask_rx: Option<AskReceiver>,
     sandbox: Sandbox,
     auto_trigger_msg: Option<String>,
+    status_signals: Option<StatusSignals>,
 ) -> anyhow::Result<()> {
     let _guard = TerminalGuard::new()?;
 
@@ -516,6 +522,9 @@ pub async fn run_interactive(
         agent_rx = Some(runner.event_rx);
         main_abort = Some(runner.abort_handle);
         is_running = true;
+        if let Some(ss) = status_signals.as_ref() {
+            ss.send_start();
+        }
         session.add_message(MessageRole::User, trigger_msg);
     }
 
@@ -601,6 +610,9 @@ pub async fn run_interactive(
                                     h.abort();
                                 }
                                 is_running = false;
+                                if let Some(ss) = status_signals.as_ref() {
+                                    ss.send_stop();
+                                }
                                 agent_rx = None;
                                 turn_trace.clear();
                                 pending_inputs.clear();
@@ -1024,6 +1036,9 @@ pub async fn run_interactive(
                                             agent_rx = Some(runner.event_rx);
                                             main_abort = Some(runner.abort_handle);
                                             is_running = true;
+                                            if let Some(ss) = status_signals.as_ref() {
+                                                ss.send_start();
+                                            }
                                             wt_return_path = Some(main_path);
                                         }
                                     }
@@ -1073,6 +1088,9 @@ pub async fn run_interactive(
                                         agent_rx = Some(runner.event_rx);
                                         main_abort = Some(runner.abort_handle);
                                         is_running = true;
+                                        if let Some(ss) = status_signals.as_ref() {
+                                            ss.send_start();
+                                        }
                                     }
                                     Err(e) if e.to_string().starts_with("DEFER_EDITOR:") => {
                                         let path = e.to_string().strip_prefix("DEFER_EDITOR:").unwrap_or("").to_string();
@@ -1208,6 +1226,7 @@ pub async fn run_interactive(
                                     &text, &mut agent, &client, session, cli, cfg, context,
                                     &permission, &ask_tx, &sandbox, reasoning_enabled,
                                     &mut agent_rx, &mut main_abort, &mut is_running,
+                                    &status_signals,
                                     #[cfg(feature = "mcp")] &mut mcp_manager,
                                 ).await;
                             }
@@ -1260,6 +1279,7 @@ pub async fn run_interactive(
                     show_reasoning,
                     &mut agent, &mut client, &mut loop_label,
                     &permission, &ask_tx, &sandbox,
+                    &status_signals,
                     #[cfg(feature = "loop")] &mut loop_state,
                     #[cfg(feature = "git-worktree")] &mut wt_return_path,
                     #[cfg(feature = "mcp")] mcp_ref,
@@ -1291,6 +1311,7 @@ pub async fn run_interactive(
                             &next, &mut agent, &client, session, cli, cfg, context,
                             &permission, &ask_tx, &sandbox, reasoning_enabled,
                             &mut agent_rx, &mut main_abort, &mut is_running,
+                            &status_signals,
                             #[cfg(feature = "mcp")] &mut mcp_manager,
                         ).await;
                     }
