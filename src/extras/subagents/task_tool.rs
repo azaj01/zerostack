@@ -48,16 +48,16 @@ impl Tool for TaskTool {
     async fn definition(&self, _p: String) -> ToolDefinition {
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Delegate a MULTI-STEP read-only investigation to a subagent. \
-Use ONLY when answering a question requires searching several files, cross-referencing, \
-and synthesizing findings (e.g. \"Where is MCP support implemented?\", \
-\"What does the function get_signature do?\"). \
-Do NOT use for single-step operations: listing a directory, grepping for one pattern, \
-reading a known file — just call the tool directly. \
-Do NOT use for wide/vague tasks (e.g. \"check all documentation\", \"explore the codebase\"). \
+            description: "Search and investigate the codebase via a fresh-context subagent. \
+Use for any cross-file question: where is X used, how does Y work, \
+find/list/count all X across the codebase, what calls Z, audit Q. \
+The subagent reads, greps, finds files, lists directories, accesses memory, \
+and returns a verified summary. \
+More reliable than running multiple grep/read calls yourself; the subagent \
+enumerates completely without truncation gaps or synthesis errors across partial views. \
 Multiple prompts run in parallel. \
-The subagent can read, grep, find_files, list directories, and access memory. \
-Returns a summary of findings."
+Skip only for known-location work: reading one identified file, \
+editing in a known location, grepping for a literal you will act on immediately."
                 .to_string(),
             parameters: serde_json::json!({
                 "type": "object",
@@ -65,7 +65,7 @@ Returns a summary of findings."
                     "prompts": {
                         "type": "array",
                         "items": { "type": "string" },
-                        "description": "Investigation prompts requiring multiple tool calls to answer (parallel when multiple). NOT for single-step operations like listing a directory or reading one file."
+                        "description": "Investigation prompt for the subagent. Use one for a focused question, or multiple to run independent investigations in parallel. Examples: 'List all tests in this project', 'Where is config loaded?', 'How does the agent loop work?'"
                     }
                 },
                 "required": ["prompts"]
