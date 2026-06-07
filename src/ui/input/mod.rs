@@ -58,6 +58,14 @@ impl InputEditor {
         }
     }
 
+    pub fn clear_buffer(&mut self) {
+        self.buffer.clear();
+        self.cursor = 0;
+        self.history_pos = None;
+        self.draft = None;
+        self.yank_pos = None;
+    }
+
     pub fn set_quick_model_names(&mut self, names: Vec<String>) {
         self.quick_model_names = names;
     }

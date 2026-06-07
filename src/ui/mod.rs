@@ -621,6 +621,9 @@ pub async fn run_interactive(
                                     ls.active = false;
                                     loop_label = None;
                                 }
+                                if !input.buffer.is_empty() {
+                                    input.clear_buffer();
+                                }
                                 if let Some(restore_name) = dot_prompt_restore.take() {
                                     context.current_prompt = context.prompts.get(&restore_name).cloned();
                                     context.current_prompt_name = if context.current_prompt.is_some() {
