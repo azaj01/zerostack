@@ -24,6 +24,13 @@ for meta in "${ROOT_DIR}/packaging/conda/"*/meta.yaml; do
     sed -i "s/{% set version = \".*\" %}/{% set version = \"${VERSION}\" %}/" "$meta"
 done
 
+# Homebrew formula
+HB_FORMULA="${ROOT_DIR}/packaging/homebrew/zerostack.rb"
+if [ -f "$HB_FORMULA" ]; then
+    sed -i "s/^  version \".*\"/  version \"${VERSION}\"/" "$HB_FORMULA"
+    sed -i "s|/download/v[^/]*/|/download/v${VERSION}/|g" "$HB_FORMULA"
+fi
+
 echo ""
 echo "Next steps:"
 echo "  just add-tag          # push tag, trigger GitHub release"

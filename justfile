@@ -125,6 +125,25 @@ conda-bin-checksums:
 
     echo "Updated SHA256 sums in packaging/conda/zerostack-bin/meta.yaml"
 
+# Download release artifacts and update packaging/homebrew/zerostack.rb checksums
+homebrew-checksums:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    VERSION=$(grep '^version' Cargo.toml | head -1 | cut -d'"' -f2)
+    echo "Computing SHA256 sums for v${VERSION}..."
+
+    SHA_DARWIN_X86=$(curl -sL "https://github.com/gi-dellav/zerostack/releases/download/v${VERSION}/zerostack-x86_64-apple-darwin.tar.gz" | sha256sum | cut -d' ' -f1)
+    SHA_DARWIN_ARM=$(curl -sL "https://github.com/gi-dellav/zerostack/releases/download/v${VERSION}/zerostack-aarch64-apple-darwin.tar.gz" | sha256sum | cut -d' ' -f1)
+    SHA_LINUX_X86=$(curl -sL "https://github.com/gi-dellav/zerostack/releases/download/v${VERSION}/zerostack-x86_64-unknown-linux-musl.tar.gz" | sha256sum | cut -d' ' -f1)
+    SHA_LINUX_ARM=$(curl -sL "https://github.com/gi-dellav/zerostack/releases/download/v${VERSION}/zerostack-aarch64-unknown-linux-musl.tar.gz" | sha256sum | cut -d' ' -f1)
+
+    sed -i "/zerostack-x86_64-apple-darwin.tar.gz/{n;s/sha256 \".*\"/sha256 \"${SHA_DARWIN_X86}\"/}" packaging/homebrew/zerostack.rb
+    sed -i "/zerostack-aarch64-apple-darwin.tar.gz/{n;s/sha256 \".*\"/sha256 \"${SHA_DARWIN_ARM}\"/}" packaging/homebrew/zerostack.rb
+    sed -i "/zerostack-x86_64-unknown-linux-musl.tar.gz/{n;s/sha256 \".*\"/sha256 \"${SHA_LINUX_X86}\"/}" packaging/homebrew/zerostack.rb
+    sed -i "/zerostack-aarch64-unknown-linux-musl.tar.gz/{n;s/sha256 \".*\"/sha256 \"${SHA_LINUX_ARM}\"/}" packaging/homebrew/zerostack.rb
+
+    echo "Updated SHA256 sums in packaging/homebrew/zerostack.rb"
+
 # ---- Packaging: AUR metadata ----
 
 # Regenerate .SRCINFO from PKGBUILD (requires makepkg)
@@ -143,8 +162,9 @@ pre-release: sync-version
     @echo "Next: just add-tag, wait for GitHub release, then: just post-release"
 
 # Run after the GitHub release has been published (needs tag archive + binaries to be available)
-post-release: conda-source-sha256 aur-checksums conda-bin-checksums aur-regen-srcinfo
+post-release: conda-source-sha256 aur-checksums conda-bin-checksums homebrew-checksums aur-regen-srcinfo
     @echo "=== post-release done: all checksums updated + .SRCINFO regenerated ==="
     @echo "Ready for:"
     @echo "  AUR: cd packaging/aur && pkgctl aur publish zerostack-bin"
     @echo "  conda: submit PR to conda-forge/staged-recipes"
+    @echo "  homebrew: push packaging/homebrew/zerostack.rb to homebrew-tap repo"
