@@ -75,7 +75,7 @@ jobs:
           tool: cross
 
       - name: Build static binary (${{ matrix.target }})
-        run: cross build --release --target ${{ matrix.target }}
+        run: cross build --release --all-features --target ${{ matrix.target }}
 
       - name: Rename and package
         run: |

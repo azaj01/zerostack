@@ -68,6 +68,10 @@ remove-tag VERSION="":
     git push --delete origin "$tag" # git push origin ":refs/tags/$tag"
     echo "Removed tag $tag"
 
+# Sync version from Cargo.toml to packaging files
+sync-version:
+    bash scripts/sync-version.sh
+
 # Run unit tests
 test: fmt
     cargo test

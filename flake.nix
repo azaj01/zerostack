@@ -10,12 +10,13 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
+        manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
       in
       {
         packages.default = pkgs.rustPlatform.buildRustPackage {
-          pname = "zerostack";
-          version = "1.4.5";
-          src = self;
+          pname = manifest.name;
+          version = manifest.version;
+          src = pkgs.lib.cleanSource ./.;
           cargoLock.lockFile = ./Cargo.lock;
 
           nativeBuildInputs = with pkgs; [
@@ -26,12 +27,29 @@
             openssl
           ];
 
-          buildFeatures = [ "loop" "git-worktree" "mcp" "subagents" "archmd" ];
+          buildFeatures = [ "acp" "memory" "multithread" ];
+
+          meta = with pkgs.lib; {
+            description = manifest.description;
+            license = licenses.gpl3Only;
+            homepage = manifest.homepage;
+            mainProgram = "zerostack";
+            platforms = platforms.linux ++ platforms.darwin;
+          };
         };
 
         apps.default = {
           type = "app";
           program = "${self.packages.${system}.default}/bin/zerostack";
+        };
+
+        devShells.default = pkgs.mkShell {
+          inputsFrom = [ self.packages.${system}.default ];
+          buildInputs = with pkgs; [
+            rust-analyzer
+            rustfmt
+            clippy
+          ];
         };
       }
     );

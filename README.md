@@ -39,23 +39,50 @@ _zerostack_ is one of the smallest and most performant coding agents on the mark
 
 ## Installation
 
-In order to install _zerostack_, you must have Cargo and git installed. Then, run:
+### Basic installation (recommended)
 
 ```bash
-# Default: MCP, loop, git-worktree and subagents
-cargo install zerostack
-
-# With ACP (Agent Communication Protocol) support for editor integration
-cargo install zerostack --features acp
-
-# With Memory support
-cargo install zerostack --features memory
-
-# With experimental multi-threaded subagents
-cargo install zerostack --features multithread
+curl -fsSL https://raw.githubusercontent.com/gi-dellav/zerostack/main/install.sh | bash
 ```
 
-You are now ready to work with a lightweight coding agent! (You can also find pre-built binaries on Github Releases)
+Or pick a tarball manually from [GitHub Releases](https://github.com/gi-dellav/zerostack/releases).
+
+### Nix
+
+```bash
+# Run directly
+nix run github:gi-dellav/zerostack
+
+# Install into your profile
+nix profile install github:gi-dellav/zerostack
+```
+
+### Arch Linux (AUR)
+
+```bash
+yay -S zerostack-bin
+```
+
+(note: You can use any AUR helper)
+
+### Conda
+
+```bash
+conda install zerostack
+```
+
+### Cargo
+
+```bash
+# Default: loop, git-worktree, mcp, subagents, archmd
+cargo install zerostack
+
+# With all features
+cargo install zerostack --all-features
+
+# With specific features
+cargo install zerostack --features acp,memory,multithread
+```
 
 Once installed, run `/prompt autoconfig` inside zerostack to explore the documentation and configure the tool interactively.
 
