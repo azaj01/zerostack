@@ -321,6 +321,12 @@ impl PermissionChecker {
         if self.is_session_allowed(tool, input) {
             return CheckResult::Allowed;
         }
+        if tool == "mcp_tool"
+            && matches!(self.mode, SecurityMode::ReadOnly | SecurityMode::PlanWrite)
+            && is_read_equivalent_mcp(input)
+        {
+            return CheckResult::Allowed;
+        }
 
         let mut matched: SmallVec<[Action; 4]> = SmallVec::new();
         if self.apply_rules()
@@ -500,4 +506,8 @@ fn is_plan_file(path: &str) -> bool {
         .file_name()
         .and_then(|n| n.to_str())
         .is_some_and(|name| name.starts_with("PLAN") && name.ends_with(".md"))
+}
+
+fn is_read_equivalent_mcp(input: &str) -> bool {
+    input == "mcp_tool:exa:websearch" || input == "mcp_tool:exa:webfetch"
 }

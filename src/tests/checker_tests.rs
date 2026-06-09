@@ -1225,6 +1225,66 @@ fn guarded_mcp_tool_asks_when_no_rule() {
     ));
 }
 
+// --- Read-equivalent MCP tools allowed in ReadOnly / PlanWrite ---
+
+#[test]
+fn readonly_allows_exa_mcp_tools() {
+    let mut checker = make_checker(SecurityMode::ReadOnly);
+    assert!(matches!(
+        checker.check("mcp_tool", "mcp_tool:exa:websearch"),
+        CheckResult::Allowed,
+    ));
+    assert!(matches!(
+        checker.check("mcp_tool", "mcp_tool:exa:webfetch"),
+        CheckResult::Allowed,
+    ));
+}
+
+#[test]
+fn planwrite_allows_exa_mcp_tools() {
+    let mut checker = make_checker(SecurityMode::PlanWrite);
+    assert!(matches!(
+        checker.check("mcp_tool", "mcp_tool:exa:websearch"),
+        CheckResult::Allowed,
+    ));
+    assert!(matches!(
+        checker.check("mcp_tool", "mcp_tool:exa:webfetch"),
+        CheckResult::Allowed,
+    ));
+}
+
+#[test]
+fn readonly_denies_non_exa_mcp_tools() {
+    let mut checker = make_checker(SecurityMode::ReadOnly);
+    assert!(matches!(
+        checker.check("mcp_tool", "mcp_tool:filesystem:write_file"),
+        CheckResult::Denied(_),
+    ));
+    assert!(matches!(
+        checker.check("mcp_tool", "mcp_tool:other_server:some_tool"),
+        CheckResult::Denied(_),
+    ));
+}
+
+#[test]
+fn readonly_denies_exa_mcp_with_extra_suffix() {
+    let mut checker = make_checker(SecurityMode::ReadOnly);
+    // Must be exact match, not prefix
+    assert!(matches!(
+        checker.check("mcp_tool", "mcp_tool:exa:websearch_extra"),
+        CheckResult::Denied(_),
+    ));
+}
+
+#[test]
+fn standard_mode_still_allows_exa_mcp_via_default() {
+    let mut checker = make_checker(SecurityMode::Standard);
+    assert!(matches!(
+        checker.check("mcp_tool", "mcp_tool:exa:websearch"),
+        CheckResult::Allowed,
+    ));
+}
+
 // --- Standard mode respects config allow for specific paths ---
 
 #[test]
