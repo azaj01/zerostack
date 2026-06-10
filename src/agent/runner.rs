@@ -1,6 +1,8 @@
 use compact_str::CompactString;
 use futures::StreamExt;
 use rig::agent::{Agent, MultiTurnStreamItem, StreamingResult};
+#[cfg(feature = "multimodal")]
+use rig::completion::message::{AudioMediaType, DocumentMediaType, ImageMediaType};
 use rig::completion::{CompletionModel, Message};
 use rig::message::ToolResultContent;
 use rig::streaming::{StreamedAssistantContent, StreamedUserContent, StreamingChat};
@@ -130,6 +132,69 @@ pub fn convert_history(session: &Session) -> Vec<Message> {
     }
 
     messages
+}
+
+#[cfg(feature = "multimodal")]
+pub fn media_to_messages(media: &[crate::extras::multimodal::MediaAttachment]) -> Vec<Message> {
+    use rig::OneOrMany;
+    use rig::completion::message::UserContent;
+
+    media
+        .iter()
+        .map(|m| match m {
+            crate::extras::multimodal::MediaAttachment::Image { data, mime } => Message::User {
+                content: OneOrMany::one(UserContent::image_raw(
+                    data.clone(),
+                    image_media_type(mime),
+                    None,
+                )),
+            },
+            crate::extras::multimodal::MediaAttachment::Audio { data, mime } => Message::User {
+                content: OneOrMany::one(UserContent::audio_raw(
+                    data.clone(),
+                    audio_media_type(mime),
+                )),
+            },
+            crate::extras::multimodal::MediaAttachment::Document { data, mime } => Message::User {
+                content: OneOrMany::one(UserContent::document_raw(
+                    data.clone(),
+                    document_media_type(mime),
+                )),
+            },
+        })
+        .collect()
+}
+
+#[cfg(feature = "multimodal")]
+fn image_media_type(mime: &str) -> Option<ImageMediaType> {
+    Some(match mime {
+        "image/png" => ImageMediaType::PNG,
+        "image/jpeg" => ImageMediaType::JPEG,
+        "image/gif" => ImageMediaType::GIF,
+        "image/webp" => ImageMediaType::WEBP,
+        _ => return None,
+    })
+}
+
+#[cfg(feature = "multimodal")]
+fn audio_media_type(mime: &str) -> Option<AudioMediaType> {
+    Some(match mime {
+        "audio/mpeg" => AudioMediaType::MP3,
+        "audio/wav" => AudioMediaType::WAV,
+        "audio/ogg" => AudioMediaType::OGG,
+        "audio/flac" => AudioMediaType::FLAC,
+        "audio/mp4" => AudioMediaType::M4A,
+        "audio/aac" => AudioMediaType::AAC,
+        _ => return None,
+    })
+}
+
+#[cfg(feature = "multimodal")]
+fn document_media_type(mime: &str) -> Option<DocumentMediaType> {
+    Some(match mime {
+        "application/pdf" => DocumentMediaType::PDF,
+        _ => return None,
+    })
 }
 
 async fn continue_prompt_injector<M, P>(

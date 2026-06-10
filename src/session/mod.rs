@@ -59,6 +59,8 @@ pub struct Session {
     pub working_dir: CompactString,
     #[serde(default)]
     pub permission_allowlist: Vec<PermissionAllowEntry>,
+    #[serde(skip)]
+    pub pending_media: Vec<crate::extras::multimodal::MediaAttachment>,
 }
 
 impl Session {
@@ -88,6 +90,7 @@ impl Session {
                 .map(|p| CompactString::new(p.to_string_lossy()))
                 .unwrap_or_default(),
             permission_allowlist: Vec::new(),
+            pending_media: Vec::new(),
         }
     }
 
@@ -100,6 +103,10 @@ impl Session {
         });
         self.total_estimated_tokens = self.total_estimated_tokens.saturating_add(tokens);
         self.updated_at = CompactString::new(chrono::Utc::now().to_rfc3339());
+    }
+
+    pub fn drain_media(&mut self) -> Vec<crate::extras::multimodal::MediaAttachment> {
+        std::mem::take(&mut self.pending_media)
     }
 
     pub fn needs_compaction(&self, reserve_tokens: u64) -> bool {

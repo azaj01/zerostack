@@ -24,13 +24,27 @@ pub async fn handle(parts: &[&str], ctx: &mut SlashCtx<'_>) -> anyhow::Result<()
 
 async fn handle_add(parts: &[&str], ctx: &mut SlashCtx<'_>) -> anyhow::Result<()> {
     if parts.len() < 2 {
-        if ctx.context.extra_files.is_empty() {
+        if ctx.context.extra_files.is_empty() && ctx.session.pending_media.is_empty() {
             write_ok(ctx.renderer, "no files added (use /add <path>)");
         } else {
             write_ok(ctx.renderer, "added files:");
             for f in &ctx.context.extra_files {
                 let size = std::fs::metadata(f).map(|m| m.len()).unwrap_or(0);
                 write_result(ctx.renderer, format!("  {} ({size}B)", f.display()));
+            }
+            for m in &ctx.session.pending_media {
+                let (kind, size, mime) = match m {
+                    crate::extras::multimodal::MediaAttachment::Image { data, mime, .. } => {
+                        ("image", data.len(), mime.as_str())
+                    }
+                    crate::extras::multimodal::MediaAttachment::Audio { data, mime, .. } => {
+                        ("audio", data.len(), mime.as_str())
+                    }
+                    crate::extras::multimodal::MediaAttachment::Document { data, mime, .. } => {
+                        ("document", data.len(), mime.as_str())
+                    }
+                };
+                write_result(ctx.renderer, format!("  [{kind}] {mime} ({size}B)"));
             }
         }
         return Ok(());
@@ -44,6 +58,30 @@ async fn handle_add(parts: &[&str], ctx: &mut SlashCtx<'_>) -> anyhow::Result<()
     }
     if !path.is_file() {
         write_error(ctx.renderer, format!("not a file: {}", path.display()));
+        return Ok(());
+    }
+
+    if crate::extras::multimodal::detect_media(&path).is_some() {
+        match crate::extras::multimodal::load_attachment(&path) {
+            Ok(attachment) => {
+                let size = attachment.size();
+                let mime = match &attachment {
+                    crate::extras::multimodal::MediaAttachment::Image { mime, .. }
+                    | crate::extras::multimodal::MediaAttachment::Audio { mime, .. }
+                    | crate::extras::multimodal::MediaAttachment::Document { mime, .. } => {
+                        mime.clone()
+                    }
+                };
+                ctx.session.pending_media.push(attachment);
+                write_ok(
+                    ctx.renderer,
+                    format!("attached: {} ({mime}, {size}B)", path.display()),
+                );
+            }
+            Err(e) => {
+                write_error(ctx.renderer, format!("failed to load media: {e}"));
+            }
+        }
         return Ok(());
     }
 

@@ -262,6 +262,17 @@ async fn start_main_run(
     )
     .await;
     let history = crate::agent::runner::convert_history(session);
+    #[cfg(feature = "multimodal")]
+    let history = {
+        let media = session.drain_media();
+        if media.is_empty() {
+            history
+        } else {
+            let mut h = history;
+            h.extend(crate::agent::runner::media_to_messages(&media));
+            h
+        }
+    };
     let runner = agent
         .as_ref()
         .unwrap()
