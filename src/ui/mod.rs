@@ -74,6 +74,7 @@ pub(super) const C_ERROR: Color = Color::Red;
 pub(super) const C_TOOL: Color = Color::Yellow;
 pub(super) const C_PERM: Color = Color::Magenta;
 pub(super) const C_BTW: Color = Color::Cyan;
+#[cfg(feature = "advisor")]
 pub(super) const C_HANDOFF: Color = Color::Green;
 
 #[allow(clippy::too_many_arguments)]

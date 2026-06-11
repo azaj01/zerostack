@@ -13,6 +13,16 @@ pub(crate) fn resolve_path(s: &str) -> PathBuf {
     }
 }
 
+#[cfg(feature = "multimodal")]
+fn has_pending_media(ctx: &SlashCtx<'_>) -> bool {
+    !ctx.session.pending_media.is_empty()
+}
+
+#[cfg(not(feature = "multimodal"))]
+fn has_pending_media(_ctx: &SlashCtx<'_>) -> bool {
+    false
+}
+
 pub async fn handle(parts: &[&str], ctx: &mut SlashCtx<'_>) -> anyhow::Result<()> {
     match parts[0] {
         "/add" => handle_add(parts, ctx).await,
@@ -24,7 +34,7 @@ pub async fn handle(parts: &[&str], ctx: &mut SlashCtx<'_>) -> anyhow::Result<()
 
 async fn handle_add(parts: &[&str], ctx: &mut SlashCtx<'_>) -> anyhow::Result<()> {
     if parts.len() < 2 {
-        if ctx.context.extra_files.is_empty() && ctx.session.pending_media.is_empty() {
+        if ctx.context.extra_files.is_empty() && !has_pending_media(ctx) {
             write_ok(ctx.renderer, "no files added (use /add <path>)");
         } else {
             write_ok(ctx.renderer, "added files:");
@@ -32,6 +42,7 @@ async fn handle_add(parts: &[&str], ctx: &mut SlashCtx<'_>) -> anyhow::Result<()
                 let size = std::fs::metadata(f).map(|m| m.len()).unwrap_or(0);
                 write_result(ctx.renderer, format!("  {} ({size}B)", f.display()));
             }
+            #[cfg(feature = "multimodal")]
             for m in &ctx.session.pending_media {
                 let (kind, size, mime) = match m {
                     crate::extras::multimodal::MediaAttachment::Image { data, mime, .. } => {
@@ -61,6 +72,7 @@ async fn handle_add(parts: &[&str], ctx: &mut SlashCtx<'_>) -> anyhow::Result<()
         return Ok(());
     }
 
+    #[cfg(feature = "multimodal")]
     if crate::extras::multimodal::detect_media(&path).is_some() {
         match crate::extras::multimodal::load_attachment(&path) {
             Ok(attachment) => {

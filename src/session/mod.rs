@@ -59,6 +59,7 @@ pub struct Session {
     pub working_dir: CompactString,
     #[serde(default)]
     pub permission_allowlist: Vec<PermissionAllowEntry>,
+    #[cfg(feature = "multimodal")]
     #[serde(skip)]
     pub pending_media: Vec<crate::extras::multimodal::MediaAttachment>,
 }
@@ -90,6 +91,7 @@ impl Session {
                 .map(|p| CompactString::new(p.to_string_lossy()))
                 .unwrap_or_default(),
             permission_allowlist: Vec::new(),
+            #[cfg(feature = "multimodal")]
             pending_media: Vec::new(),
         }
     }
@@ -105,6 +107,7 @@ impl Session {
         self.updated_at = CompactString::new(chrono::Utc::now().to_rfc3339());
     }
 
+    #[cfg(feature = "multimodal")]
     pub fn drain_media(&mut self) -> Vec<crate::extras::multimodal::MediaAttachment> {
         std::mem::take(&mut self.pending_media)
     }

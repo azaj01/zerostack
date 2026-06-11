@@ -22,8 +22,11 @@ mod tests;
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use clap::Parser;
+#[cfg(feature = "advisor")]
 use compact_str::CompactString;
-use session::{MessageRole, Session, SessionMessage};
+use session::MessageRole;
+#[cfg(feature = "advisor")]
+use session::{Session, SessionMessage};
 
 use crate::agent::tools;
 use crate::extras::status_signals::StatusSignals;

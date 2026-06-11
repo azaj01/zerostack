@@ -76,6 +76,7 @@ pub struct ColorsConfig {
     pub status_background: Option<CompactString>,
 }
 
+#[cfg(feature = "advisor")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AdvisorConfig {
@@ -87,6 +88,7 @@ pub struct AdvisorConfig {
     pub advisor_kilobytes_limit: u32,
 }
 
+#[cfg(feature = "advisor")]
 impl Default for AdvisorConfig {
     fn default() -> Self {
         Self {
