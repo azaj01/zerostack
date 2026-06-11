@@ -195,6 +195,53 @@ pub struct Cli {
     )]
     pub wt_force: bool,
 
+    #[cfg(feature = "advisor")]
+    #[arg(
+        long = "advisor",
+        help = "Enable advisor tool (model can consult a stronger reviewer model)"
+    )]
+    pub advisor: bool,
+
+    #[cfg(feature = "advisor")]
+    #[arg(
+        long = "advisor-model",
+        help = "Advisor model name (e.g. 'claude-opus-4-8')"
+    )]
+    pub advisor_model: Option<String>,
+
+    #[cfg(feature = "advisor")]
+    #[arg(
+        long = "advisor-provider",
+        help = "Provider for the advisor model (defaults to main provider)"
+    )]
+    pub advisor_provider: Option<String>,
+
+    #[cfg(feature = "advisor")]
+    #[arg(
+        long = "advisor-max-uses",
+        help = "Maximum advisor calls per request (default: 3)"
+    )]
+    pub advisor_max_uses: Option<usize>,
+
+    #[cfg(feature = "advisor")]
+    #[arg(
+        long = "advisor-human-handoff",
+        help = "Route advisor calls to the user instead of a model",
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true,
+        default_value = "false"
+    )]
+    pub advisor_human_handoff: Option<bool>,
+
+    #[cfg(feature = "advisor")]
+    #[arg(
+        long = "advisor-kilobytes-limit",
+        help = "Max total kilobytes of conversation context to send to the advisor (head: half, tail: half). Default: 256",
+        default_value = "256"
+    )]
+    pub advisor_kilobytes_limit: u32,
+
     #[cfg(feature = "status-signals")]
     #[arg(
         long = "status-socket",
@@ -305,5 +352,65 @@ impl Cli {
     #[cfg(feature = "git-worktree")]
     pub fn resolve_wt_force(&self, cfg: &config::Config) -> bool {
         self.wt_force || cfg.wt_force.unwrap_or(false)
+    }
+
+    #[cfg(feature = "advisor")]
+    pub fn resolve_advisor_enabled(&self, cfg: &config::Config) -> bool {
+        if let Some(ref ac) = cfg.advisor {
+            self.advisor || ac.enabled
+        } else {
+            self.advisor
+        }
+    }
+
+    #[cfg(feature = "advisor")]
+    pub fn resolve_advisor_model(&self, cfg: &config::Config) -> String {
+        self.advisor_model
+            .clone()
+            .or_else(|| {
+                cfg.advisor
+                    .as_ref()
+                    .and_then(|a| a.model.clone())
+                    .map(|m| m.to_string())
+            })
+            .unwrap_or_else(|| "deepseek/deepseek-v4-pro".to_string())
+    }
+
+    #[cfg(feature = "advisor")]
+    pub fn resolve_advisor_provider(&self, cfg: &config::Config) -> Option<String> {
+        self.advisor_provider.clone().or_else(|| {
+            cfg.advisor
+                .as_ref()
+                .and_then(|a| a.provider.clone())
+                .map(|m| m.to_string())
+        })
+    }
+
+    #[cfg(feature = "advisor")]
+    pub fn resolve_advisor_max_uses(&self, cfg: &config::Config) -> Option<usize> {
+        self.advisor_max_uses
+            .or_else(|| cfg.advisor.as_ref().and_then(|a| a.max_uses))
+    }
+
+    #[cfg(feature = "advisor")]
+    pub fn resolve_advisor_human_handoff(&self, cfg: &config::Config) -> bool {
+        self.advisor_human_handoff.unwrap_or_else(|| {
+            cfg.advisor
+                .as_ref()
+                .map(|a| a.human_handoff)
+                .unwrap_or(false)
+        })
+    }
+
+    #[cfg(feature = "advisor")]
+    pub fn resolve_advisor_kilobytes_limit(&self, cfg: &config::Config) -> u32 {
+        if self.advisor_kilobytes_limit != 256 {
+            self.advisor_kilobytes_limit
+        } else {
+            cfg.advisor
+                .as_ref()
+                .map(|a| a.advisor_kilobytes_limit)
+                .unwrap_or(256)
+        }
     }
 }

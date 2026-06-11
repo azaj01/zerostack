@@ -53,6 +53,11 @@ pub struct SlashCtx<'a> {
 impl SlashCtx<'_> {
     pub async fn rebuild_agent(&mut self) {
         let model = self.client.completion_model(self.session.model.to_string());
+        #[cfg(feature = "advisor")]
+        {
+            crate::extras::advisor::update_client(self.client.clone());
+            crate::extras::advisor::set_session_messages(self.session.messages.clone());
+        }
         *self.agent = Some(
             crate::provider::build_agent(
                 model,
@@ -82,6 +87,11 @@ impl SlashCtx<'_> {
             self.cfg.api_keys.as_ref(),
         )?;
         let model = self.client.completion_model(self.session.model.to_string());
+        #[cfg(feature = "advisor")]
+        {
+            crate::extras::advisor::update_client(self.client.clone());
+            crate::extras::advisor::set_session_messages(self.session.messages.clone());
+        }
         *self.agent = Some(
             crate::provider::build_agent(
                 model,
@@ -285,7 +295,7 @@ pub async fn handle_slash(
         "/prompt" | "/theme" | "/regen-prompts" | "/regen-themes" => {
             content::handle(&parts, &mut ctx).await
         }
-        "/reasoning" | "/thinking" | "/mode" | "/toggle" | "/mcp" | "/editsys" => {
+        "/reasoning" | "/thinking" | "/mode" | "/toggle" | "/mcp" | "/editsys" | "/advisor" => {
             settings::handle(&parts, &mut ctx).await
         }
         "/sessions" | "/clear" | "/new" | "/undo" | "/retry" | "/quit" | "/exit" | "/history" => {

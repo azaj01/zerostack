@@ -146,6 +146,10 @@ fn rich_default_config() -> Config {
         cfg.subagent_max_grep_results = Some(200);
         cfg.subagent_max_find_results = Some(200);
     }
+    #[cfg(feature = "advisor")]
+    {
+        cfg.advisor = Some(crate::config::types::AdvisorConfig::default());
+    }
     cfg
 }
 

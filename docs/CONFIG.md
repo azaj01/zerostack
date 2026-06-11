@@ -475,3 +475,71 @@ Write well-tested code. Follow project conventions.
 The mode change is applied when the prompt is activated and persists
 until changed again by `/mode`, another prompt directive, or a restart.
 The status bar shows `| mode:<name>` when the mode is not `standard`.
+
+## Advisor
+
+The advisor tool lets the agent consult a stronger reviewer model (or the
+user, in human-handoff mode) for strategic guidance before making important
+decisions. This follows the [advisor strategy](https://claude.com/blog/the-advisor-strategy):
+a cheaper "executor" model drives the task and escalates to a more capable
+model only when needed.
+
+### TOML
+
+```toml
+[advisor]
+enabled = true
+model = "deepseek/deepseek-v4-pro"
+# provider = "openrouter"         # defaults to main provider
+# max_uses = 3                    # max advisor calls per request (nil = unlimited)
+# human_handoff = false           # route advisor calls to the user instead
+# advisor_kilobytes_limit = 256   # max KB of conversation context (split half head / half tail)
+```
+
+### JSON
+
+```json
+{
+  "advisor": {
+    "enabled": true,
+    "model": "deepseek/deepseek-v4-pro",
+    "max_uses": 3,
+    "human_handoff": false,
+    "advisor_kilobytes_limit": 256
+  }
+}
+```
+
+### CLI flags
+
+| Flag | Description |
+|------|-------------|
+| `--advisor` | Enable the advisor tool |
+| `--advisor-model <name>` | Advisor model name |
+| `--advisor-provider <name>` | Provider for the advisor model |
+| `--advisor-max-uses <n>` | Max advisor calls per request |
+| `--advisor-human-handoff` | Route advisor calls to the user |
+| `--advisor-kilobytes-limit <n>` | Max KB of conversation context sent to advisor (default: 256) |
+
+### Human handoff mode
+
+When `human_handoff = true`, the agent's advisor calls are redirected to the
+user instead of a second model. The agent pauses, shows its question, and the
+user types a response. This is useful for:
+
+- Reviewing the agent's approach before it writes code
+- Stepping in when the agent is stuck or uncertain
+- Teaching the agent your preferences interactively
+
+### Runtime control
+
+The `/advisor` slash command provides runtime control:
+
+```
+/advisor                    Show current advisor status
+/advisor on|off             Enable or disable the advisor
+/advisor handoff [on|off]   Toggle human handoff mode
+/advisor model <name>       Change the advisor model
+/advisor max-uses <n>       Set max advisor calls per request (0 = unlimited)
+/advisor context-limit <n>  Set max kilobytes of conversation context
+```

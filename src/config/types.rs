@@ -75,3 +75,27 @@ pub struct ColorsConfig {
     pub input_background: Option<CompactString>,
     pub status_background: Option<CompactString>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AdvisorConfig {
+    pub enabled: bool,
+    pub model: Option<CompactString>,
+    pub provider: Option<CompactString>,
+    pub max_uses: Option<usize>,
+    pub human_handoff: bool,
+    pub advisor_kilobytes_limit: u32,
+}
+
+impl Default for AdvisorConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            model: None,
+            provider: None,
+            max_uses: Some(3),
+            human_handoff: true,
+            advisor_kilobytes_limit: 256,
+        }
+    }
+}

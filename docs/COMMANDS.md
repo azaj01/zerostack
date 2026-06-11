@@ -142,6 +142,20 @@ older daily logs are accessible via `/memory read` and `memory_search`.
 | `/mcp` | List connected MCP servers and their tool counts. |
 | `/mcp <server>` | List tools of a specific MCP server. |
 
+## Advisor (feature-gated)
+
+| Command | Description |
+| ------- | ----------- |
+| `/advisor` | Show current advisor status (enabled, mode, model, max uses). |
+| `/advisor on` | Enable the advisor tool. |
+| `/advisor off` | Disable the advisor tool. |
+| `/advisor handoff` | Toggle human handoff mode on. |
+| `/advisor handoff on` | Enable human handoff mode (route calls to the user). |
+| `/advisor handoff off` | Disable human handoff mode (use advisor model). |
+| `/advisor model <name>` | Change the advisor model. |
+| `/advisor max-uses <n>` | Set max advisor calls per request (0 = unlimited). |
+| `/advisor context-limit <n>` | Set max kilobytes of conversation context sent to advisor. |
+
 ## Worktree (feature-gated)
 
 | Command | Description |

@@ -22,7 +22,8 @@ mod tests;
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use clap::Parser;
-use session::MessageRole;
+use compact_str::CompactString;
+use session::{MessageRole, Session, SessionMessage};
 
 use crate::agent::tools;
 use crate::extras::status_signals::StatusSignals;
@@ -277,6 +278,59 @@ async fn main() -> anyhow::Result<()> {
     let status_signals: Option<StatusSignals> = None;
     let (permission, ask_tx, ask_rx) = build_permission_checker(&cli, &cfg);
 
+    #[cfg(feature = "advisor")]
+    let handoff_rx = {
+        let enabled = cli.resolve_advisor_enabled(&cfg);
+        let human_handoff = cli.resolve_advisor_human_handoff(&cfg);
+        let advisor_model = cli.resolve_advisor_model(&cfg);
+        let max_uses = cli.resolve_advisor_max_uses(&cfg);
+        let kilobytes_limit = cli.resolve_advisor_kilobytes_limit(&cfg);
+
+        let advisor_provider = cli
+            .resolve_advisor_provider(&cfg)
+            .unwrap_or_else(|| provider.to_string());
+        let advisor_client = if advisor_provider == provider {
+            Some(client.clone())
+        } else {
+            match crate::provider::create_client(
+                &advisor_provider,
+                cli.api_key.as_deref(),
+                &cfg.custom_providers_map(),
+                cfg.api_keys.as_ref(),
+            ) {
+                Ok(c) => Some(c),
+                Err(e) => {
+                    tracing::warn!(
+                        "Could not create advisor client for provider '{}' ({}); \
+                         advisor disabled. Set `advisor.provider` and API key in config.",
+                        advisor_provider,
+                        e
+                    );
+                    None
+                }
+            }
+        };
+
+        let (handoff_tx, handoff_rx) = if human_handoff && is_interactive {
+            let (tx, rx) = tokio::sync::mpsc::channel(8);
+            (Some(tx), Some(rx))
+        } else {
+            (None, None)
+        };
+
+        let config = crate::extras::advisor::AdvisorToolConfig {
+            client: advisor_client,
+            advisor_model,
+            human_handoff,
+            max_uses,
+            handoff_tx,
+            enabled,
+            kilobytes_limit,
+        };
+        crate::extras::advisor::init_config(config);
+
+        handoff_rx
+    };
     let completion_model = client.completion_model(model.to_string());
 
     // ── Interactive prompts (last thing before TUI dispatch) ──
@@ -507,6 +561,16 @@ async fn main() -> anyhow::Result<()> {
                 None,
             )
             .await;
+            #[cfg(feature = "advisor")]
+            {
+                let mut msgs = session.messages.clone();
+                msgs.push(SessionMessage {
+                    role: MessageRole::User,
+                    content: CompactString::new(&msg),
+                    estimated_tokens: Session::estimate_tokens(&msg),
+                });
+                crate::extras::advisor::set_session_messages(msgs);
+            }
             if let Some(ss) = status_signals.as_ref() {
                 ss.send_start();
             }
@@ -574,6 +638,8 @@ async fn main() -> anyhow::Result<()> {
             sandbox,
             arch_msg,
             status_signals,
+            #[cfg(feature = "advisor")]
+            handoff_rx,
         )
         .await?;
     }
@@ -743,6 +809,35 @@ fn print_config(cli: &cli::Cli, cfg: &config::Config) {
             ("compact", compact.to_string()),
         ],
     );
+
+    #[cfg(feature = "advisor")]
+    {
+        let advisor_enabled = cli.resolve_advisor_enabled(cfg);
+        let human_handoff = cli.resolve_advisor_human_handoff(cfg);
+        let advisor_model = cli.resolve_advisor_model(cfg);
+        let max_uses = cli
+            .resolve_advisor_max_uses(cfg)
+            .map(|n| n.to_string())
+            .unwrap_or_else(|| "unlimited".to_string());
+        print_section(
+            "Advisor",
+            &[
+                ("enabled", advisor_enabled.to_string()),
+                ("model", advisor_model),
+                ("human-handoff", human_handoff.to_string()),
+                ("max-uses", max_uses),
+                (
+                    "context-limit",
+                    format!(
+                        "{} KB ({} head / {} tail)",
+                        cli.resolve_advisor_kilobytes_limit(cfg),
+                        cli.resolve_advisor_kilobytes_limit(cfg) * 1024 / 2,
+                        cli.resolve_advisor_kilobytes_limit(cfg) * 1024 / 2,
+                    ),
+                ),
+            ],
+        );
+    }
 }
 
 #[cfg(feature = "loop")]

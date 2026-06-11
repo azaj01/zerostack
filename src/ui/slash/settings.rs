@@ -9,6 +9,20 @@ pub async fn handle(parts: &[&str], ctx: &mut SlashCtx<'_>) -> anyhow::Result<()
         "/mode" => handle_mode(parts, ctx).await,
         "/toggle" => handle_toggle(parts, ctx).await,
         "/editsys" => handle_editsys(parts, ctx).await,
+        "/advisor" => {
+            #[cfg(feature = "advisor")]
+            {
+                handle_advisor(parts, ctx).await
+            }
+            #[cfg(not(feature = "advisor"))]
+            {
+                write_error(
+                    ctx.renderer,
+                    "Advisor support not enabled (build with --features advisor)",
+                );
+                Ok(())
+            }
+        }
         #[cfg(feature = "mcp")]
         "/mcp" => handle_mcp(parts, ctx).await,
         #[cfg(not(feature = "mcp"))]
@@ -34,6 +48,156 @@ async fn handle_reasoning(_parts: &[&str], ctx: &mut SlashCtx<'_>) -> anyhow::Re
             if *ctx.reasoning_enabled { "on" } else { "off" }
         ),
     );
+    Ok(())
+}
+
+#[cfg(feature = "advisor")]
+async fn handle_advisor(parts: &[&str], ctx: &mut SlashCtx<'_>) -> anyhow::Result<()> {
+    use crate::extras::advisor;
+
+    let current = advisor::with_config(|c| c.clone());
+
+    if parts.len() < 2 {
+        write_ok(ctx.renderer, "advisor:");
+        write_result(
+            ctx.renderer,
+            format!("  enabled: {}", if current.enabled { "yes" } else { "no" }),
+        );
+        write_result(
+            ctx.renderer,
+            format!(
+                "  mode: {}",
+                if current.human_handoff {
+                    "human handoff"
+                } else {
+                    "model"
+                }
+            ),
+        );
+        write_result(ctx.renderer, format!("  model: {}", current.advisor_model));
+        write_result(
+            ctx.renderer,
+            format!(
+                "  max uses: {}",
+                current
+                    .max_uses
+                    .map(|n| n.to_string())
+                    .unwrap_or_else(|| "unlimited".to_string())
+            ),
+        );
+        write_result(ctx.renderer, "");
+        write_result(
+            ctx.renderer,
+            format!("  context limit: {} KB", current.kilobytes_limit),
+        );
+        write_result(ctx.renderer, "");
+        write_result(ctx.renderer, "  /advisor on|off");
+        write_result(ctx.renderer, "  /advisor handoff [on|off]");
+        write_result(ctx.renderer, "  /advisor model <name>");
+        write_result(ctx.renderer, "  /advisor max-uses <n>");
+        write_result(ctx.renderer, "  /advisor context-limit <kilobytes>");
+        return Ok(());
+    }
+
+    match parts[1] {
+        "on" => {
+            let mut cfg = current;
+            cfg.enabled = true;
+            advisor::init_config(cfg);
+            ctx.rebuild_agent().await;
+            write_ok(ctx.renderer, "advisor: on");
+        }
+        "off" => {
+            let mut cfg = current;
+            cfg.enabled = false;
+            advisor::init_config(cfg);
+            ctx.rebuild_agent().await;
+            write_ok(ctx.renderer, "advisor: off");
+        }
+        "handoff" => {
+            let new_state = match parts.get(2).copied() {
+                Some("on") | None => true,
+                Some("off") => false,
+                Some(other) => {
+                    write_error(ctx.renderer, format!("invalid: '{}', use on or off", other));
+                    return Ok(());
+                }
+            };
+            let mut cfg = current;
+            cfg.human_handoff = new_state;
+            // In human handoff mode, need a handoff_tx; use existing client's
+            // tx or create a new channel
+            if new_state && cfg.handoff_tx.is_none() {
+                // Can't create a new handoff channel at runtime without TUI
+                write_error(
+                    ctx.renderer,
+                    "Human handoff requires a TUI channel (start with --advisor-human-handoff)",
+                );
+                return Ok(());
+            }
+            advisor::init_config(cfg);
+            ctx.rebuild_agent().await;
+            write_ok(
+                ctx.renderer,
+                format!("advisor handoff: {}", if new_state { "on" } else { "off" }),
+            );
+        }
+        "model" => {
+            if let Some(model) = parts.get(2) {
+                let mut cfg = current;
+                cfg.advisor_model = model.to_string();
+                advisor::init_config(cfg);
+                ctx.rebuild_agent().await;
+                write_ok(ctx.renderer, format!("advisor model: {}", model));
+            } else {
+                write_error(ctx.renderer, "usage: /advisor model <name>");
+            }
+        }
+        "max-uses" => {
+            if let Some(n) = parts.get(2).and_then(|s| s.parse::<usize>().ok()) {
+                let mut cfg = current;
+                cfg.max_uses = if n == 0 { None } else { Some(n) };
+                let label = cfg
+                    .max_uses
+                    .map(|n| n.to_string())
+                    .unwrap_or_else(|| "unlimited".to_string());
+                advisor::init_config(cfg);
+                write_ok(ctx.renderer, format!("advisor max uses: {}", label));
+            } else {
+                write_error(
+                    ctx.renderer,
+                    "usage: /advisor max-uses <number|0=unlimited>",
+                );
+            }
+        }
+        "context-limit" => {
+            if let Some(n) = parts.get(2).and_then(|s| s.parse::<u32>().ok()) {
+                let mut cfg = current;
+                cfg.kilobytes_limit = n;
+                advisor::init_config(cfg);
+                write_ok(
+                    ctx.renderer,
+                    format!(
+                        "advisor context limit: {} KB ({} chars head / {} chars tail)",
+                        n,
+                        n as usize * 1024 / 2,
+                        n as usize * 1024 / 2,
+                    ),
+                );
+            } else {
+                write_error(ctx.renderer, "usage: /advisor context-limit <kilobytes>");
+            }
+        }
+        _ => {
+            write_error(
+                ctx.renderer,
+                format!(
+                    "unknown: '{}' (on|off|handoff|model|max-uses|context-limit)",
+                    parts[1]
+                ),
+            );
+        }
+    }
     Ok(())
 }
 

@@ -74,6 +74,7 @@ pub(super) const C_ERROR: Color = Color::Red;
 pub(super) const C_TOOL: Color = Color::Yellow;
 pub(super) const C_PERM: Color = Color::Magenta;
 pub(super) const C_BTW: Color = Color::Cyan;
+pub(super) const C_HANDOFF: Color = Color::Green;
 
 #[allow(clippy::too_many_arguments)]
 fn refresh_display(
@@ -285,6 +286,8 @@ async fn start_main_run(
         ss.send_start();
     }
     session.add_message(MessageRole::User, text);
+    #[cfg(feature = "advisor")]
+    crate::extras::advisor::set_session_messages(session.messages.clone());
     if !cli.no_session {
         let _ = crate::session::chat_history::append_entry(
             &crate::session::chat_history::ChatHistoryEntry {
@@ -309,6 +312,7 @@ pub async fn run_interactive(
     sandbox: Sandbox,
     auto_trigger_msg: Option<String>,
     status_signals: Option<StatusSignals>,
+    #[cfg(feature = "advisor")] mut handoff_rx: Option<crate::extras::advisor::HandoffReceiver>,
 ) -> anyhow::Result<()> {
     let _guard = TerminalGuard::new()?;
 
@@ -537,6 +541,8 @@ pub async fn run_interactive(
             ss.send_start();
         }
         session.add_message(MessageRole::User, trigger_msg);
+        #[cfg(feature = "advisor")]
+        crate::extras::advisor::set_session_messages(session.messages.clone());
     }
 
     let (mut user_tx, mut user_rx) = mpsc::channel::<UserEvent>(64);
@@ -1375,6 +1381,32 @@ pub async fn run_interactive(
                 tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
             }
         }
+
+        #[cfg(feature = "advisor")]
+        if let Some(ref mut rx) = handoff_rx {
+            if let Ok(handoff_req) = rx.try_recv() {
+                handle_human_handoff(
+                    handoff_req,
+                    &mut renderer,
+                    &mut user_rx,
+                    &mut agent_line_started,
+                    &mut was_reasoning,
+                )
+                .await?;
+                refresh_display(
+                    &mut renderer,
+                    &mut input,
+                    session,
+                    is_running,
+                    loop_label.as_deref(),
+                    context.current_prompt_name.as_deref(),
+                    perm_mode().as_deref(),
+                    btw_total_cost,
+                    btw_total_in,
+                    btw_total_out,
+                )?;
+            }
+        }
     }
 
     #[cfg(feature = "git-worktree")]
@@ -1468,5 +1500,63 @@ pub async fn run_interactive(
         mgr.shutdown().await;
     }
 
+    Ok(())
+}
+
+#[cfg(feature = "advisor")]
+async fn handle_human_handoff(
+    req: crate::extras::advisor::HandoffRequest,
+    renderer: &mut Renderer,
+    user_rx: &mut mpsc::Receiver<UserEvent>,
+    agent_line_started: &mut bool,
+    was_reasoning: &mut bool,
+) -> anyhow::Result<()> {
+    *was_reasoning = false;
+    if *agent_line_started {
+        renderer.write_line("", Color::White)?;
+        *agent_line_started = false;
+    }
+
+    renderer.write_line("[handoff] Model requests your guidance:", C_HANDOFF)?;
+    for line in req.question.lines() {
+        renderer.write_line(&format!("  | {}", sanitize_output(line)), C_HANDOFF)?;
+    }
+    renderer.write_line("", C_HANDOFF)?;
+    renderer.write_line(
+        "  Type your response and press Enter (ESC to cancel):",
+        C_HANDOFF,
+    )?;
+
+    let mut buffer = String::new();
+    let response = loop {
+        tokio::select! {
+            Some(ev) = user_rx.recv() => {
+                if let crate::event::UserEvent::Key(key) = ev {
+                    match key.code {
+                        crossterm::event::KeyCode::Enter => break buffer,
+                        crossterm::event::KeyCode::Esc => break String::new(),
+                        crossterm::event::KeyCode::Char(c) => {
+                            buffer.push(c);
+                            renderer.write_line(&format!("  > {}", buffer), C_HANDOFF)?;
+                        }
+                        crossterm::event::KeyCode::Backspace => {
+                            buffer.pop();
+                            renderer.write_line(&format!("  > {}", buffer), C_HANDOFF)?;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    };
+
+    if response.is_empty() {
+        renderer.write_line("  [cancelled]", C_HANDOFF)?;
+    } else {
+        renderer.write_line(&format!("  [sent: {}]", response), C_HANDOFF)?;
+    }
+    renderer.write_line("", Color::White)?;
+
+    let _ = req.reply.send(response);
     Ok(())
 }
