@@ -1104,6 +1104,26 @@ pub async fn run_interactive(
                                             ss.send_start();
                                         }
                                     }
+                                    Err(e) if e.to_string().starts_with("DEFER_REVIEW:") => {
+                                        let msg = e.to_string().strip_prefix("DEFER_REVIEW:").unwrap_or("").to_string();
+                                        dot_prompt_restore = context.one_shot_restore.take();
+                                        session.add_message(MessageRole::User, &msg);
+                                        #[cfg(feature = "mcp")]
+                                        let mcp_ref = ensure_mcp_manager(&mut mcp_manager, cfg).await;
+                                        ensure_agent(
+                                            &mut agent, &client, session, cli, cfg, context,
+                                            &permission, &ask_tx, &sandbox, reasoning_enabled,
+                                            #[cfg(feature = "mcp")] mcp_ref,
+                                        ).await;
+                                        let history = crate::agent::runner::convert_history(session);
+                                        let runner = agent.as_ref().unwrap().clone().spawn_runner(msg, history);
+                                        agent_rx = Some(runner.event_rx);
+                                        main_abort = Some(runner.abort_handle);
+                                        is_running = true;
+                                        if let Some(ss) = status_signals.as_ref() {
+                                            ss.send_start();
+                                        }
+                                    }
                                     Err(e) if e.to_string().starts_with("DEFER_EDITOR:") => {
                                         let path = e.to_string().strip_prefix("DEFER_EDITOR:").unwrap_or("").to_string();
                                         let editor = cfg.editor.clone()

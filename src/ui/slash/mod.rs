@@ -5,6 +5,7 @@ mod help;
 pub(crate) mod init;
 mod memory;
 mod providers;
+pub(crate) mod review;
 mod session;
 mod settings;
 
@@ -311,6 +312,7 @@ pub async fn handle_slash(
         }
         "/add" | "/drop" | "/drop-all" => add::handle(&parts, &mut ctx).await,
         "/init" => init::handle(&parts, &mut ctx).await,
+        "/review" => review::handle(&parts, &mut ctx).await,
         "/memory" => memory::handle(&parts, &mut ctx).await,
         "/compress" | "/compact" | "/loop" | "/worktree" | "/wt-merge" | "/wt-exit" => {
             features::handle(&parts, &mut ctx).await

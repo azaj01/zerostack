@@ -229,6 +229,14 @@ impl Config {
         self.always_show_welcome.unwrap_or(false)
     }
 
+    pub fn resolve_auto_update_prompts(&self) -> Option<bool> {
+        self.auto_update_prompts
+    }
+
+    pub fn resolve_auto_update_themes(&self) -> Option<bool> {
+        self.auto_update_themes
+    }
+
     pub fn build_permission_config(&self) -> PermissionConfigs {
         let glob: PermissionConfig = self
             .permission

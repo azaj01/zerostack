@@ -34,6 +34,7 @@ const COMMANDS: &[&str] = &[
     "/help",
     "/welcome",
     "/tutorial",
+    "/review",
     "/worktree",
     "/wt-merge",
     "/wt-exit",

@@ -344,8 +344,8 @@ async fn main() -> anyhow::Result<()> {
         let themes_dir = context::themes::global_dir();
         let mut regenerated = false;
 
-        // Prompts: check config/CLI override, then fall back to asking or auto-regen
-        match cli.resolve_auto_update_prompts(&cfg) {
+        // Prompts: check config override, then fall back to asking or auto-regen
+        match cfg.resolve_auto_update_prompts() {
             Some(true) => {
                 let _ = context::prompts::regen();
                 eprintln!("Prompts regenerated.");
@@ -371,8 +371,8 @@ async fn main() -> anyhow::Result<()> {
             }
         }
 
-        // Themes: check config/CLI override, then fall back to asking or auto-regen
-        match cli.resolve_auto_update_themes(&cfg) {
+        // Themes: check config override, then fall back to asking or auto-regen
+        match cfg.resolve_auto_update_themes() {
             Some(true) => {
                 let _ = context::themes::regen();
                 eprintln!("Themes regenerated.");

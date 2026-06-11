@@ -125,24 +125,6 @@ pub struct Cli {
     )]
     pub no_context_files: bool,
 
-    #[arg(
-        long = "auto-update-prompts",
-        help = "Automatically regenerate prompts on version change (skip prompt). Use --no-auto-update-prompts to deny.",
-        num_args = 0..=1,
-        require_equals = true,
-        default_missing_value = "true"
-    )]
-    pub auto_update_prompts: Option<bool>,
-
-    #[arg(
-        long = "auto-update-themes",
-        help = "Automatically regenerate themes on version change (skip prompt). Use --no-auto-update-themes to deny.",
-        num_args = 0..=1,
-        require_equals = true,
-        default_missing_value = "true"
-    )]
-    pub auto_update_themes: Option<bool>,
-
     #[cfg(feature = "loop")]
     #[arg(
         long = "loop",
@@ -322,14 +304,6 @@ impl Cli {
 
     pub fn resolve_no_context_files(&self, cfg: &config::Config) -> bool {
         self.no_context_files || cfg.no_context_files.unwrap_or(false)
-    }
-
-    pub fn resolve_auto_update_prompts(&self, cfg: &config::Config) -> Option<bool> {
-        self.auto_update_prompts.or(cfg.auto_update_prompts)
-    }
-
-    pub fn resolve_auto_update_themes(&self, cfg: &config::Config) -> Option<bool> {
-        self.auto_update_themes.or(cfg.auto_update_themes)
     }
 
     pub fn resolve_no_tools(&self, cfg: &config::Config) -> bool {
