@@ -21,7 +21,7 @@ pub struct LineEntry {
 pub struct Renderer {
     lines: u16,
     col: u16,
-    spinner_tick: bool,
+    spinner_frame: u8,
     buffer: Vec<LineEntry>,
     partial: CompactString,
     partial_color: Color,
@@ -42,7 +42,7 @@ impl Renderer {
         Ok(Renderer {
             lines: 0,
             col: 0,
-            spinner_tick: false,
+            spinner_frame: 0,
             buffer: Vec::new(),
             partial: CompactString::new(""),
             partial_color: Color::White,
@@ -580,9 +580,11 @@ impl Renderer {
             0
         };
 
+        const SPINNER: &[&str] = &["⠋ ", "⠙ ", "⠹ ", "⠸ ", "⠼ ", "⠴ ", "⠦ ", "⠧ ", "⠇ ", "⠏ "];
         let prompt = if is_running {
-            self.spinner_tick = !self.spinner_tick;
-            if self.spinner_tick { ". " } else { ": " }
+            let frame = SPINNER[self.spinner_frame as usize];
+            self.spinner_frame = (self.spinner_frame + 1) % SPINNER.len() as u8;
+            frame
         } else {
             "> "
         };
