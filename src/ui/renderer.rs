@@ -691,7 +691,11 @@ impl Renderer {
             }
 
             if i == first_visible {
-                write!(stdout, "{}", SetForegroundColor(self.color(Color::Cyan)))?;
+                write!(
+                    stdout,
+                    "{}",
+                    SetForegroundColor(self.color(Color::DarkYellow))
+                )?;
                 write!(stdout, "{}", prompt)?;
                 write!(stdout, "{}", SetForegroundColor(Color::Reset))?;
             } else {

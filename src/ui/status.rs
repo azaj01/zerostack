@@ -18,7 +18,7 @@ impl StatusLine {
     #[allow(clippy::too_many_arguments)]
     pub fn render(
         session: &Session,
-        is_running: bool,
+        _is_running: bool,
         _spinner_tick: u64,
         loop_label: Option<&str>,
         prompt_name: Option<&str>,
@@ -28,10 +28,8 @@ impl StatusLine {
         btw_in: u64,
         btw_out: u64,
     ) -> String {
-        let state = if is_running {
-            "running".to_string()
-        } else if let Some(name) = prompt_name {
-            format!("prompt:[{}]", name)
+        let state = if let Some(name) = prompt_name {
+            format!("prompt:{}", name)
         } else {
             String::new()
         };
