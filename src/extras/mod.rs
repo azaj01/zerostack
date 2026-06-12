@@ -23,6 +23,7 @@ pub mod archmd;
 pub mod advisor;
 
 pub mod chain;
+#[cfg(feature = "multimodal")]
 pub mod multimodal;
 
 pub mod status_signals;
