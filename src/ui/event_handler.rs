@@ -423,17 +423,63 @@ async fn handle_agent_done(
     if let Some(ls) = loop_state
         && ls.active
     {
+        let summary: String = response
+            .chars()
+            .take(crate::extras::r#loop::SUMMARY_TRUNCATION_CHARS)
+            .collect();
+        ls.last_summary = Some(summary.clone());
+
+        let validation_output = if let Some(cmd) = &ls.run_cmd {
+            let shell = if cfg!(windows) { "powershell" } else { "sh" };
+            let shell_arg = if cfg!(windows) { "-Command" } else { "-c" };
+            match tokio::process::Command::new(shell)
+                .arg(shell_arg)
+                .arg(cmd)
+                .output()
+                .await
+            {
+                Ok(output) => {
+                    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+                    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+                    let combined = if stderr.is_empty() {
+                        stdout
+                    } else {
+                        format!("{}\n{}", stdout, stderr)
+                    };
+                    Some(combined)
+                }
+                Err(e) => {
+                    let msg = format!("error: {}", e);
+                    Some(msg)
+                }
+            }
+        } else {
+            None
+        };
+        ls.last_run_output = validation_output.clone();
+
+        let _ = crate::extras::r#loop::transcript::save_iteration(
+            &session.id,
+            ls.iteration,
+            &ls.build_prompt(),
+            &response,
+            validation_output.as_deref(),
+            &summary,
+        );
+
+        ls.iteration += 1;
+
         if ls.should_stop() {
             renderer.write_line(
-                &format!("[loop] max iterations ({}) reached, stopping", ls.iteration),
+                &format!(
+                    "[loop] max iterations ({}) reached, stopping",
+                    ls.iteration - 1
+                ),
                 C_AGENT,
             )?;
             ls.active = false;
             *loop_label = None;
         } else {
-            let summary: String = response.chars().take(200).collect();
-            ls.last_summary = Some(summary);
-            ls.iteration += 1;
             let prompt = ls.build_prompt();
             *agent = Some({
                 let model = client.completion_model(session.model.to_string());

@@ -930,12 +930,12 @@ async fn run_headless_loop(
     let plan_file = cli
         .loop_plan
         .clone()
-        .unwrap_or_else(|| PathBuf::from("LOOP_PLAN.md"));
+        .unwrap_or_else(|| PathBuf::from(loop_mod::DEFAULT_PLAN_FILENAME));
     let max_iterations = cli.loop_max;
     let run_cmd = cli.loop_run.clone();
     let session_id = Uuid::new_v4().to_string();
 
-    let use_existing = loop_mod::plan::handle_startup(&plan_file)?;
+    let use_existing = loop_mod::plan::handle_startup(&plan_file).await?;
     if !use_existing {
         // No plan exists — agent will generate one on first iteration
     }
@@ -948,7 +948,7 @@ async fn run_headless_loop(
         if state.should_stop() {
             eprintln!(
                 "[loop] max iterations ({}) reached, stopping",
-                state.iteration
+                state.max_iterations.unwrap_or(0)
             );
             break;
         }
@@ -980,7 +980,10 @@ async fn run_headless_loop(
             }
         };
 
-        let summary: String = response.chars().take(300).collect();
+        let summary: String = response
+            .chars()
+            .take(loop_mod::SUMMARY_TRUNCATION_CHARS)
+            .collect();
         state.last_summary = Some(summary.clone());
 
         let validation_output = if let Some(cmd) = &state.run_cmd {

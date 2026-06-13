@@ -16,6 +16,8 @@ mod crc_tests;
 mod edit_tests;
 #[cfg(test)]
 mod input_tests;
+#[cfg(all(test, feature = "loop"))]
+mod loop_tests;
 #[cfg(test)]
 mod markdown_tests;
 #[cfg(all(test, feature = "memory"))]

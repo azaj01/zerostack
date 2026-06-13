@@ -1,6 +1,8 @@
 use std::io::Write;
 use std::path::Path;
 
+use super::DEFAULT_PLAN_FILENAME;
+
 pub fn plan_exists(plan_file: &Path) -> bool {
     plan_file.exists()
 }
@@ -19,17 +21,25 @@ pub fn delete_plan(plan_file: &Path) {
     }
 }
 
-pub fn handle_startup(plan_file: &Path) -> anyhow::Result<bool> {
+pub async fn handle_startup(plan_file: &Path) -> anyhow::Result<bool> {
     if !plan_exists(plan_file) {
         return Ok(false);
     }
-    eprint!("LOOP_PLAN.md already exists. Restart from existing plan? [Y/n] ");
+    eprint!(
+        "{} already exists. Restart from existing plan? [Y/n] ",
+        DEFAULT_PLAN_FILENAME
+    );
     let _ = std::io::stdout().flush();
-    let mut input = String::new();
-    let _ = std::io::stdin().read_line(&mut input);
+    let plan_file_owned = plan_file.to_path_buf();
+    let input = tokio::task::spawn_blocking(move || {
+        let mut input = String::new();
+        let _ = std::io::stdin().read_line(&mut input);
+        input
+    })
+    .await?;
     let input = input.trim().to_lowercase();
     if input == "n" || input == "no" {
-        delete_plan(plan_file);
+        delete_plan(&plan_file_owned);
         Ok(false)
     } else {
         Ok(true)

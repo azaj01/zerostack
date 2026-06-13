@@ -3,6 +3,9 @@ use std::path::PathBuf;
 pub mod plan;
 pub mod transcript;
 
+pub const DEFAULT_PLAN_FILENAME: &str = "LOOP_PLAN.md";
+pub const SUMMARY_TRUNCATION_CHARS: usize = 1024;
+
 pub struct LoopState {
     pub active: bool,
     pub prompt: String,
@@ -45,7 +48,7 @@ impl LoopState {
         let run_output = self.last_run_output.as_deref().unwrap_or("(none)");
 
         format!(
-            "{}\n\n--- Loop Context (Iteration {}/{}) ---\n\nCurrent plan ({}):\n{}\n\nPrevious iteration summary:\n{}\n\nPrevious validation output:\n{}\n\n--- Instructions ---\n- Choose ONE task from the plan. Do not implement multiple things.\n- Before writing code, search the codebase with grep/find_files first.\n- After implementing: run the tests for the changed code.\n- Keep LOOP_PLAN.md up to date: mark completed items, add new findings.\n- If you discover bugs unrelated to your task, document them in LOOP_PLAN.md.\n- Commit working changes with descriptive messages.",
+            "{}\n\n--- Loop Context (Iteration {}/{}) ---\n\nCurrent plan ({}):\n{}\n\nPrevious iteration summary:\n{}\n\nPrevious validation output:\n{}\n\n--- Instructions ---\n- Choose ONE task from the plan. Do not implement multiple things.\n- Before writing code, search the codebase with grep/find_files first.\n- After implementing: run the tests for the changed code.\n- Keep {} up to date: mark completed items, add new findings.\n- If you discover bugs unrelated to your task, document them in {}.\n- Commit working changes with descriptive messages.",
             self.prompt,
             self.iteration,
             max_label,
@@ -53,6 +56,8 @@ impl LoopState {
             plan_contents,
             summary,
             run_output,
+            DEFAULT_PLAN_FILENAME,
+            DEFAULT_PLAN_FILENAME,
         )
     }
 
@@ -66,7 +71,7 @@ impl LoopState {
 
     pub fn should_stop(&self) -> bool {
         match self.max_iterations {
-            Some(max) => self.iteration >= max,
+            Some(max) => self.iteration > max,
             None => false,
         }
     }

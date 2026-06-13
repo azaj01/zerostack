@@ -54,7 +54,7 @@ async fn handle_loop(parts: &[&str], ctx: &mut SlashCtx<'_>) -> anyhow::Result<(
             write_error(ctx.renderer, "usage: /loop <prompt>");
             return Ok(());
         }
-        let plan_file = std::path::PathBuf::from("LOOP_PLAN.md");
+        let plan_file = std::path::PathBuf::from(crate::extras::r#loop::DEFAULT_PLAN_FILENAME);
         let ls = crate::extras::r#loop::LoopState::new(prompt, plan_file, None, None);
         *ctx.loop_state = Some(ls);
         write_ok(
