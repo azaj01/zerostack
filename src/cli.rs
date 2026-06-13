@@ -211,13 +211,6 @@ pub struct Cli {
 
     #[cfg(feature = "advisor")]
     #[arg(
-        long = "advisor-provider",
-        help = "Provider for the advisor model (defaults to main provider)"
-    )]
-    pub advisor_provider: Option<String>,
-
-    #[cfg(feature = "advisor")]
-    #[arg(
         long = "advisor-max-uses",
         help = "Maximum advisor calls per request (default: 3)"
     )]
@@ -373,17 +366,7 @@ impl Cli {
                     .and_then(|a| a.model.clone())
                     .map(|m| m.to_string())
             })
-            .unwrap_or_else(|| "deepseek/deepseek-v4-pro".to_string())
-    }
-
-    #[cfg(feature = "advisor")]
-    pub fn resolve_advisor_provider(&self, cfg: &config::Config) -> Option<String> {
-        self.advisor_provider.clone().or_else(|| {
-            cfg.advisor
-                .as_ref()
-                .and_then(|a| a.provider.clone())
-                .map(|m| m.to_string())
-        })
+            .unwrap_or_else(|| "deepseek-v4-pro".to_string())
     }
 
     #[cfg(feature = "advisor")]

@@ -289,13 +289,18 @@ async fn main() -> anyhow::Result<()> {
     let handoff_rx = {
         let enabled = cli.resolve_advisor_enabled(&cfg);
         let human_handoff = cli.resolve_advisor_human_handoff(&cfg);
-        let advisor_model = cli.resolve_advisor_model(&cfg);
+        let advisor_model_name = cli.resolve_advisor_model(&cfg);
         let max_uses = cli.resolve_advisor_max_uses(&cfg);
         let kilobytes_limit = cli.resolve_advisor_kilobytes_limit(&cfg);
 
-        let advisor_provider = cli
-            .resolve_advisor_provider(&cfg)
-            .unwrap_or_else(|| provider.to_string());
+        let qm = config::quick_models_map(&cfg);
+        let (advisor_provider, advisor_model) = if let Some(q) = qm.get(advisor_model_name.as_str())
+        {
+            (q.provider.to_string(), q.model.to_string())
+        } else {
+            (provider.to_string(), advisor_model_name)
+        };
+
         let advisor_client = if advisor_provider == provider {
             Some(client.clone())
         } else {
@@ -309,7 +314,7 @@ async fn main() -> anyhow::Result<()> {
                 Err(e) => {
                     tracing::warn!(
                         "Could not create advisor client for provider '{}' ({}); \
-                         advisor disabled. Set `advisor.provider` and API key in config.",
+                         advisor disabled. Set `advisor.model` and API key in config.",
                         advisor_provider,
                         e
                     );

@@ -105,7 +105,6 @@ impl Default for ChainConfig {
 pub struct AdvisorConfig {
     pub enabled: bool,
     pub model: Option<CompactString>,
-    pub provider: Option<CompactString>,
     pub max_uses: Option<usize>,
     pub human_handoff: bool,
     pub advisor_kilobytes_limit: u32,
@@ -116,8 +115,7 @@ impl Default for AdvisorConfig {
     fn default() -> Self {
         Self {
             enabled: false,
-            model: None,
-            provider: None,
+            model: Some(CompactString::new("deepseek-v4-pro")),
             max_uses: Some(3),
             human_handoff: true,
             advisor_kilobytes_limit: 256,
