@@ -226,7 +226,20 @@ fn table_content_is_white() {
 
 #[test]
 fn table_blank_skipped() {
-    markdown_to_styled("||\n|--|\n||\n", 80);
+    let styled = markdown_to_styled("||\n|--|\n||\n", 80);
+    // Fully blank rows are filtered out; only the trailing blank separator remains.
+    let content: Vec<_> = styled.iter().filter(|e| e.color == Color::White).collect();
+    assert_eq!(content.len(), 1, "only trailing blank separator expected");
+    assert!(
+        content[0].text.is_empty(),
+        "trailing separator should be empty"
+    );
+    // No DarkGrey border lines because the table had no non-blank rows.
+    let borders: Vec<_> = styled
+        .iter()
+        .filter(|e| e.color == Color::DarkGrey)
+        .collect();
+    assert!(borders.is_empty(), "no borders for all-blank table");
 }
 
 #[test]
@@ -246,9 +259,54 @@ fn table_with_inline_code() {
 
 #[test]
 fn table_with_alignment() {
-    let input = "| L | C | R |\n|:--|:-:|--:|\n| a | b | c |\n";
+    // Headers wider than data so alignment padding is visible.
+    let input = "| Left | Center | Right |\n|:-----|:------:|------:|\n| a    | b      | c     |\n";
     let styled = markdown_to_styled(input, 80);
     assert!(!styled.is_empty(), "aligned table should render");
+
+    let joined: String = styled
+        .iter()
+        .map(|e| e.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let data_row = joined
+        .lines()
+        .find(|l| l.contains('a') && l.contains('b') && l.contains('c'))
+        .expect("data row should exist");
+    // Left-aligned: "a" should have trailing spaces before next │
+    assert!(
+        data_row.contains("│ a  "),
+        "left-aligned 'a' should have trailing padding: {data_row}"
+    );
+    // Right-aligned: "c" should have leading spaces after │
+    assert!(
+        data_row.contains("  c │"),
+        "right-aligned 'c' should have leading padding: {data_row}"
+    );
+    // Center-aligned: "b" should have spaces on both sides
+    assert!(
+        data_row.contains("  b  "),
+        "center-aligned 'b' should have padding on both sides: {data_row}"
+    );
+}
+
+#[test]
+fn table_respects_max_width() {
+    let input = "| Col A | Col B |\n|-------|-------|\n| alpha | beta  |\n";
+    for width in [20, 25, 30, 40] {
+        let styled = markdown_to_styled(input, width);
+        for entry in &styled {
+            let w = display_width(&entry.text);
+            assert!(
+                w <= width,
+                "line '{}' has width {} > max_width {}",
+                entry.text,
+                w,
+                width
+            );
+        }
+        assert!(!styled.is_empty(), "table should render at width {}", width);
+    }
 }
 
 // ── markdown_to_styled: regression ──────────────────────────────────

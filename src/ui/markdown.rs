@@ -456,18 +456,28 @@ fn flush_table(
         }
     }
 
-    let available = max_width.saturating_sub((col_count + 1) * 2);
-    if available <= col_count {
+    let overhead = 3 * col_count + 1;
+    let available = max_width.saturating_sub(overhead);
+    if available == 0 {
         return;
     }
 
-    let total_req: usize = col_widths.iter().sum();
-    if total_req > available {
-        let excess: f64 = (total_req - available) as f64 / col_count as f64;
-        for w in col_widths.iter_mut() {
-            let reduce = (excess.ceil() as usize).min(w.saturating_sub(4));
-            *w = w.saturating_sub(reduce);
+    let mut total_req: usize = col_widths.iter().sum();
+    const MIN_COL_WIDTH: usize = 4;
+    while total_req > available {
+        let mut widest_idx = 0;
+        let mut widest_w = 0;
+        for (i, w) in col_widths.iter().enumerate() {
+            if *w > widest_w {
+                widest_w = *w;
+                widest_idx = i;
+            }
         }
+        if widest_w <= MIN_COL_WIDTH {
+            break;
+        }
+        col_widths[widest_idx] -= 1;
+        total_req -= 1;
     }
 
     let top = format_table_rule(&col_widths, '\u{250c}', '\u{252c}', '\u{2510}');
