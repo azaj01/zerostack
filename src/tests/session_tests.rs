@@ -1,4 +1,4 @@
-use crate::session::{MessageRole, Session, SessionMessage};
+use crate::session::{MessageRole, Session};
 
 #[test]
 fn estimate_tokens_empty() {
@@ -26,6 +26,35 @@ fn estimate_tokens_rounds_down() {
 fn estimate_tokens_long() {
     assert_eq!(Session::estimate_tokens(&"x".repeat(100)), 25);
 }
+
+#[test]
+fn estimate_tokens_cjk_not_undercounted_like_chars_div4() {
+    let text = "今天天氣很好真開心"; // 9 chars
+    let est = Session::estimate_tokens(text);
+    assert_eq!(est, 8); // 9 * 9 / 10 = 8
+    assert!(est > (text.chars().count() as u64 / 4));
+}
+
+#[test]
+fn estimate_tokens_mixed_cjk_and_latin() {
+    let text = "請幫我 refactor this function 好嗎";
+    let wide = text
+        .chars()
+        .filter(|c| {
+            let o = *c as u32;
+            (0x2E80..=0x9FFF).contains(&o)
+        })
+        .count() as u64;
+    let est = Session::estimate_tokens(text);
+    assert!(est >= wide * 9 / 10);
+}
+
+#[test]
+fn estimate_tokens_pure_ascii_matches_old_formula() {
+    let text = "the quick brown fox jumps over the lazy dog";
+    assert_eq!(Session::estimate_tokens(text), text.len() as u64 / 4);
+}
+
 
 #[test]
 fn new_session_has_id() {

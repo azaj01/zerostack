@@ -66,7 +66,29 @@ pub struct Session {
 
 impl Session {
     pub fn estimate_tokens(text: &str) -> u64 {
-        (text.len() as u64 / 4).max(1)
+        let mut wide: u64 = 0;
+        let mut narrow: u64 = 0;
+        for ch in text.chars() {
+            if Self::is_wide_char(ch) {
+                wide += 1;
+            } else {
+                narrow += 1;
+            }
+        }
+        // wide * 0.9 + narrow / 4, min 1
+        ((wide * 9 / 10) + narrow / 4).max(1)
+    }
+
+    fn is_wide_char(ch: char) -> bool {
+        matches!(ch as u32,
+            0x1100..=0x11FF |   // Hangul Jamo
+            0x2E80..=0x9FFF |   // CJK radicals/Kangxi/punctuation/kana/Unified+ExtA
+            0xA000..=0xA4CF |   // Yi
+            0xAC00..=0xD7A3 |   // Hangul Syllables
+            0xF900..=0xFAFF |   // CJK Compatibility Ideographs
+            0xFF00..=0xFFEF |   // Halfwidth/Fullwidth Forms
+            0x20000..=0x3FFFF   // Supplementary Ideographic Plane (Ext B–F)
+        )
     }
 
     pub fn new(provider: &str, model: &str, context_window: u64) -> Self {
