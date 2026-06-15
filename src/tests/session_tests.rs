@@ -1,4 +1,4 @@
-use crate::session::{MessageRole, Session, SessionMessage};
+use crate::session::{MessageRole, Session};
 
 #[test]
 fn estimate_tokens_empty() {
@@ -25,6 +25,103 @@ fn estimate_tokens_rounds_down() {
 #[test]
 fn estimate_tokens_long() {
     assert_eq!(Session::estimate_tokens(&"x".repeat(100)), 25);
+}
+
+#[test]
+fn estimate_tokens_cjk_not_undercounted_like_chars_div4() {
+    let text = "今天天氣很好真開心"; // 9 chars
+    let est = Session::estimate_tokens(text);
+    assert_eq!(est, 8); // 9 * 9 / 10 = 8
+    assert!(est > (text.chars().count() as u64 / 4));
+}
+
+#[test]
+fn estimate_tokens_mixed_cjk_and_latin() {
+    let text = "請幫我 refactor this function 好嗎";
+    let wide = text
+        .chars()
+        .filter(|c| {
+            let o = *c as u32;
+            (0x2E80..=0x9FFF).contains(&o)
+        })
+        .count() as u64;
+    let est = Session::estimate_tokens(text);
+    assert!(est >= wide * 9 / 10);
+}
+
+#[test]
+fn estimate_tokens_pure_ascii_matches_old_formula() {
+    let text = "the quick brown fox jumps over the lazy dog";
+    assert_eq!(Session::estimate_tokens(text), text.len() as u64 / 4);
+}
+
+#[test]
+fn effective_context_falls_back_without_calibration() {
+    let mut s = Session::new("openai", "gpt-4", 128000);
+    s.add_message(MessageRole::User, "hello world this is a test message");
+    assert_eq!(s.effective_context_tokens(), s.total_estimated_tokens);
+}
+
+#[test]
+fn effective_context_uses_calibration_anchor_plus_delta() {
+    let mut s = Session::new("openai", "gpt-4", 128000);
+    s.add_message(MessageRole::User, "first user message");
+    s.add_message(MessageRole::Assistant, "assistant reply");
+    s.set_calibration(5000, 200); // anchor = 5200, covers 2 messages
+    assert_eq!(s.calibrated_msg_count, 2);
+
+    s.add_message(MessageRole::User, "a follow up question");
+    let delta = Session::estimate_tokens("a follow up question");
+    assert_eq!(s.effective_context_tokens(), 5200 + delta);
+}
+
+#[test]
+fn calibration_ignores_zero_usage() {
+    let mut s = Session::new("openai", "gpt-4", 128000);
+    s.add_message(MessageRole::User, "msg");
+    s.set_calibration(0, 0);
+    assert_eq!(s.calibrated_tokens, 0);
+    assert_eq!(s.effective_context_tokens(), s.total_estimated_tokens);
+}
+
+// Helper: a session with `n` ASCII messages of `len` chars each, so every
+// message has a predictable estimated_tokens == len/4.
+fn session_with_messages(n: usize, len: usize) -> Session {
+    let mut s = Session::new("openai", "gpt-4", 128000);
+    for _ in 0..n {
+        s.add_message(MessageRole::User, &"x".repeat(len));
+    }
+    s
+}
+
+#[test]
+fn compaction_cut_keeps_recent_within_budget() {
+    // 4 messages × 10 tokens = 40 total. keep_recent=15 reaches back across
+    // the last two (20 tokens), so the first two are summarized.
+    let s = session_with_messages(4, 40);
+    assert_eq!(s.messages[0].estimated_tokens, 10);
+    assert_eq!(Session::select_compaction_cut(&s.messages, 15), 2);
+}
+
+#[test]
+fn compaction_cut_oversized_keep_recent_summarizes_nothing() {
+    // Regression: keep_recent (100) larger than the whole history (40) must
+    // keep the recent messages, NOT summarize everything (cut == 0, which the
+    // caller treats as "entire context is recent").
+    let s = session_with_messages(4, 40);
+    assert_eq!(Session::select_compaction_cut(&s.messages, 100), 0);
+}
+
+#[test]
+fn compaction_cut_zero_keep_recent_summarizes_all() {
+    let s = session_with_messages(4, 40);
+    assert_eq!(Session::select_compaction_cut(&s.messages, 0), 4);
+}
+
+#[test]
+fn compaction_cut_single_message_is_kept() {
+    let s = session_with_messages(1, 40); // 1 msg, 10 tokens
+    assert_eq!(Session::select_compaction_cut(&s.messages, 5), 0);
 }
 
 #[test]

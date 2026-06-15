@@ -50,6 +50,10 @@ pub struct Session {
     pub total_cost: f64,
     pub total_estimated_tokens: u64,
     #[serde(default)]
+    pub calibrated_tokens: u64,
+    #[serde(default)]
+    pub calibrated_msg_count: usize,
+    #[serde(default)]
     pub input_token_cost: f64,
     #[serde(default)]
     pub output_token_cost: f64,
@@ -66,7 +70,29 @@ pub struct Session {
 
 impl Session {
     pub fn estimate_tokens(text: &str) -> u64 {
-        (text.len() as u64 / 4).max(1)
+        let mut wide: u64 = 0;
+        let mut narrow: u64 = 0;
+        for ch in text.chars() {
+            if Self::is_wide_char(ch) {
+                wide += 1;
+            } else {
+                narrow += 1;
+            }
+        }
+        // wide * 0.9 + narrow / 4, min 1
+        ((wide * 9 / 10) + narrow / 4).max(1)
+    }
+
+    fn is_wide_char(ch: char) -> bool {
+        matches!(ch as u32,
+            0x1100..=0x11FF |   // Hangul Jamo
+            0x2E80..=0x9FFF |   // CJK radicals/Kangxi/punctuation/kana/Unified+ExtA
+            0xA000..=0xA4CF |   // Yi
+            0xAC00..=0xD7A3 |   // Hangul Syllables
+            0xF900..=0xFAFF |   // CJK Compatibility Ideographs
+            0xFF00..=0xFFEF |   // Halfwidth/Fullwidth Forms
+            0x20000..=0x3FFFF   // Supplementary Ideographic Plane (Ext B–F)
+        )
     }
 
     pub fn new(provider: &str, model: &str, context_window: u64) -> Self {
@@ -82,6 +108,8 @@ impl Session {
             total_output_tokens: 0,
             total_cost: 0.0,
             total_estimated_tokens: 0,
+            calibrated_tokens: 0,
+            calibrated_msg_count: 0,
             input_token_cost: 0.0,
             output_token_cost: 0.0,
             context_window,
@@ -112,11 +140,66 @@ impl Session {
         std::mem::take(&mut self.pending_media)
     }
 
+    pub fn set_calibration(&mut self, input_tokens: u64, output_tokens: u64) {
+        if input_tokens == 0 {
+            return;
+        }
+        self.calibrated_tokens = input_tokens.saturating_add(output_tokens);
+        self.calibrated_msg_count = self.messages.len();
+    }
+
+    pub fn reset_calibration(&mut self) {
+        self.calibrated_tokens = 0;
+        self.calibrated_msg_count = 0;
+    }
+
+    pub fn effective_context_tokens(&self) -> u64 {
+        if self.calibrated_tokens == 0 {
+            return self.total_estimated_tokens;
+        }
+        let start = self.calibrated_msg_count.min(self.messages.len());
+        let delta: u64 = self.messages[start..]
+            .iter()
+            .map(|m| m.estimated_tokens)
+            .sum();
+        self.calibrated_tokens.saturating_add(delta)
+    }
+    
+    /// Pick the compaction boundary: `messages[..cut]` get summarized and
+    /// `messages[cut..]` are kept as recent context. Walks backward summing
+    /// per-message `estimated_tokens` until `keep_recent` is covered.
+    ///
+    /// This deliberately stays in the per-message estimate scale rather than
+    /// the calibrated total: it is a *relative* comparison among messages (how
+    /// far back does `keep_recent` reach), so any uniform estimator bias
+    /// cancels out. Calibration only matters for the absolute total in
+    /// `effective_context_tokens`.
+    ///
+    /// Returns 0 ("nothing old enough to summarize") when every message fits
+    /// within `keep_recent`. The initial value is 0, not `messages.len()`, so
+    /// an oversized `keep_recent` keeps the recent messages instead of
+    /// summarizing the entire history, a case made reachable now that the
+    /// compaction gate measures context against real usage (system prompt and
+    /// context files can push the real total over budget while the messages
+    /// themselves stay small).
+    pub fn select_compaction_cut(messages: &[SessionMessage], keep_recent: u64) -> usize {
+        let mut accumulated = 0u64;
+        let mut cut_idx = 0;
+        for (i, msg) in messages.iter().enumerate().rev() {
+            if accumulated >= keep_recent {
+                cut_idx = i + 1;
+                break;
+            }
+            accumulated = accumulated.saturating_add(msg.estimated_tokens);
+        }
+        cut_idx
+    }
+
     pub fn needs_compaction(&self, reserve_tokens: u64) -> bool {
         if self.context_window == 0 {
             return false;
         }
-        self.total_estimated_tokens > self.context_window.saturating_sub(reserve_tokens)
+        self.effective_context_tokens() > self.context_window.saturating_sub(reserve_tokens)
     }
 
     pub fn update_context_window(&mut self, cw: u64) {
@@ -156,6 +239,10 @@ impl Session {
             token_savings,
             created_at: CompactString::new(chrono::Utc::now().to_rfc3339()),
         });
+
+        // Compaction reindexes messages, so the calibration anchor no longer
+        // lines up. Drop it; the next completed turn re-anchors.
+        self.reset_calibration();
 
         // Adjust all compaction first_kept indices for the removed messages
         // (since we never have >1 compaction with the current simple approach, this is fine)

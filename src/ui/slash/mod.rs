@@ -178,20 +178,12 @@ pub async fn handle_compress(
     let keep_recent = cfg.resolve_keep_recent_tokens();
     let max_tokens = session.context_window.saturating_sub(reserve);
 
-    if session.total_estimated_tokens <= max_tokens {
+    if session.effective_context_tokens() <= max_tokens {
         renderer.write_line("context within limits, no compression needed", C_AGENT)?;
         return Ok(());
     }
 
-    let mut accumulated = 0u64;
-    let mut cut_idx = session.messages.len();
-    for (i, msg) in session.messages.iter().enumerate().rev() {
-        if accumulated >= keep_recent {
-            cut_idx = i + 1;
-            break;
-        }
-        accumulated = accumulated.saturating_add(msg.estimated_tokens);
-    }
+    let cut_idx = crate::session::Session::select_compaction_cut(&session.messages, keep_recent);
 
     if cut_idx == 0 {
         renderer.write_line("nothing to compress (entire context is recent)", C_AGENT)?;
