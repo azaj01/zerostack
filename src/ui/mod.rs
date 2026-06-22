@@ -1181,6 +1181,7 @@ pub async fn run_interactive(
                                 if let Some(h) = main_abort.take() {
                                     h.abort();
                                 }
+                                sandbox.kill_active();
                                 is_running = false;
                                 if let Some(ss) = status_signals.as_ref() {
                                     ss.send_stop();
@@ -2523,6 +2524,7 @@ pub async fn run_interactive(
                                                     if let Some(h) = main_abort.take() {
                                                         h.abort();
                                                     }
+                                                    sandbox.kill_active();
                                                     is_running = false;
                                                     if let Some(ss) = status_signals.as_ref() {
                                                         ss.send_stop();

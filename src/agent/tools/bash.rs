@@ -133,14 +133,20 @@ impl Tool for BashTool {
         }
 
         let output = if let Some(secs) = args.timeout {
-            timeout(
+            match timeout(
                 Duration::from_millis(secs),
-                self.sandbox.wrap_command(&args.command).output(),
+                self.sandbox.output_command(&args.command),
             )
             .await
-            .map_err(|_| ToolError::Msg("Command timed out".to_string()))?
+            {
+                Ok(output) => output,
+                Err(_) => {
+                    self.sandbox.kill_active();
+                    return Err(ToolError::Msg("Command timed out".to_string()));
+                }
+            }
         } else {
-            self.sandbox.wrap_command(&args.command).output().await
+            self.sandbox.output_command(&args.command).await
         }?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);

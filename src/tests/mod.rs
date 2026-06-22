@@ -55,6 +55,8 @@ mod session_storage_tests;
 #[cfg(test)]
 mod session_tests;
 #[cfg(test)]
+mod shell_mode_tests;
+#[cfg(test)]
 mod singleflight_tests;
 #[cfg(test)]
 mod slash_add_tests;

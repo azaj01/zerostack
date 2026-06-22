@@ -1,5 +1,8 @@
-use std::sync::OnceLock;
+use std::collections::HashSet;
+use std::process::{Output, Stdio};
+use std::sync::{Arc, Mutex, OnceLock};
 
+use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 
 #[derive(Debug, Clone)]
@@ -7,6 +10,7 @@ pub struct Sandbox {
     enabled: bool,
     backend: String,
     shell: String,
+    active_groups: Arc<Mutex<HashSet<u32>>>,
 }
 
 static BWRAP_AVAILABLE: OnceLock<bool> = OnceLock::new();
@@ -31,12 +35,51 @@ fn which_cmd(name: &str) -> bool {
         .unwrap_or(false)
 }
 
+struct ProcessGroupGuard {
+    pid: Option<u32>,
+    active_groups: Arc<Mutex<HashSet<u32>>>,
+}
+
+impl ProcessGroupGuard {
+    fn new(pid: Option<u32>, active_groups: Arc<Mutex<HashSet<u32>>>) -> Self {
+        if let Some(pid) = pid {
+            active_groups
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .insert(pid);
+        }
+        Self { pid, active_groups }
+    }
+
+    fn disarm(&mut self) {
+        if let Some(pid) = self.pid.take() {
+            self.active_groups
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .remove(&pid);
+        }
+    }
+}
+
+impl Drop for ProcessGroupGuard {
+    fn drop(&mut self) {
+        if let Some(pid) = self.pid.take() {
+            self.active_groups
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .remove(&pid);
+            kill_process_group(pid);
+        }
+    }
+}
+
 impl Sandbox {
     pub fn new(enabled: bool, backend: &str) -> Self {
         Sandbox {
             enabled,
             backend: backend.to_string(),
             shell: "bash".to_string(),
+            active_groups: Arc::new(Mutex::new(HashSet::new())),
         }
     }
 
@@ -51,7 +94,7 @@ impl Sandbox {
         if !self.enabled {
             let mut cmd = Command::new(&self.shell);
             cmd.arg("-c").arg(command);
-            cmd.kill_on_drop(true);
+            configure_child_lifetime(&mut cmd);
             return cmd;
         }
 
@@ -62,7 +105,7 @@ impl Sandbox {
                 tracing::warn!("sandbox: zerobox not found, running unsandboxed");
                 let mut cmd = Command::new(&self.shell);
                 cmd.arg("-c").arg(command);
-                cmd.kill_on_drop(true);
+                configure_child_lifetime(&mut cmd);
                 return cmd;
             }
             let mut cmd = Command::new("zerobox");
@@ -72,7 +115,7 @@ impl Sandbox {
             cmd.arg(&self.shell);
             cmd.arg("-c");
             cmd.arg(command);
-            cmd.kill_on_drop(true);
+            configure_child_lifetime(&mut cmd);
             return cmd;
         }
 
@@ -80,7 +123,7 @@ impl Sandbox {
             tracing::warn!("sandbox: bwrap not found, running unsandboxed");
             let mut cmd = Command::new(&self.shell);
             cmd.arg("-c").arg(command);
-            cmd.kill_on_drop(true);
+            configure_child_lifetime(&mut cmd);
             return cmd;
         }
 
@@ -127,8 +170,113 @@ impl Sandbox {
             "-c",
             command,
         ]);
-        cmd.kill_on_drop(true);
+        configure_child_lifetime(&mut cmd);
         cmd
+    }
+
+    pub async fn output_command(&self, command: &str) -> std::io::Result<Output> {
+        let mut cmd = self.wrap_command(command);
+        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+        let mut child = cmd.spawn()?;
+        let (stdout_handle, stdout) = spawn_pipe_reader(child.stdout.take());
+        let (stderr_handle, stderr) = spawn_pipe_reader(child.stderr.take());
+        let mut guard = ProcessGroupGuard::new(child.id(), self.active_groups.clone());
+        let status = child.wait().await?;
+
+        if tokio::time::timeout(std::time::Duration::from_millis(100), async {
+            join_reader(stdout_handle).await?;
+            join_reader(stderr_handle).await
+        })
+        .await
+        .is_err()
+        {
+            if let Some(pid) = guard.pid {
+                kill_process_group(pid);
+            }
+        }
+        let stdout = stdout.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        let stderr = stderr.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        guard.disarm();
+        Ok(Output {
+            status,
+            stdout,
+            stderr,
+        })
+    }
+
+    pub fn kill_active(&self) {
+        let groups: Vec<u32> = self
+            .active_groups
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .drain()
+            .collect();
+        for pid in groups {
+            kill_process_group(pid);
+        }
+    }
+
+    pub fn active_group_count(&self) -> usize {
+        self.active_groups
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .len()
+    }
+}
+
+fn spawn_pipe_reader(
+    pipe: Option<impl tokio::io::AsyncRead + Send + Unpin + 'static>,
+) -> (
+    tokio::task::JoinHandle<std::io::Result<()>>,
+    Arc<Mutex<Vec<u8>>>,
+) {
+    let output = Arc::new(Mutex::new(Vec::new()));
+    let reader_output = output.clone();
+    let handle = tokio::spawn(async move {
+        if let Some(mut pipe) = pipe {
+            let mut buf = [0; 8192];
+            loop {
+                let read = pipe.read(&mut buf).await?;
+                if read == 0 {
+                    break;
+                }
+                reader_output
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .extend_from_slice(&buf[..read]);
+            }
+        }
+        Ok(())
+    });
+    (handle, output)
+}
+
+async fn join_reader(reader: tokio::task::JoinHandle<std::io::Result<()>>) -> std::io::Result<()> {
+    reader
+        .await
+        .map_err(|e| std::io::Error::other(format!("pipe reader task failed: {e}")))?
+}
+
+fn configure_child_lifetime(cmd: &mut Command) {
+    cmd.kill_on_drop(true);
+    #[cfg(unix)]
+    cmd.process_group(0);
+}
+
+fn kill_process_group(pid: u32) {
+    #[cfg(unix)]
+    {
+        let group = format!("-{}", pid);
+        let _ = std::process::Command::new("kill")
+            .args(["-TERM", "--", &group])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+        let _ = std::process::Command::new("kill")
+            .args(["-KILL", "--", &group])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
     }
 }
 
