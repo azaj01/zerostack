@@ -327,6 +327,50 @@ async fn spawn_merge_agent(
         force_flag,
     ));
 }
+/// Result of a background agent prebuild.
+#[cfg(feature = "mcp")]
+type PrebuildPayload = (AnyAgent, Option<McpClientManager>);
+#[cfg(not(feature = "mcp"))]
+type PrebuildPayload = AnyAgent;
+
+/// If the background prebuild hasn't delivered yet, block until it does.
+#[cfg(feature = "mcp")]
+fn resolve_prebuild<'a>(
+    agent: &'a mut Option<AnyAgent>,
+    mcp_manager: &'a mut Option<McpClientManager>,
+    prebuild_rx: &'a mut Option<mpsc::Receiver<PrebuildPayload>>,
+) -> impl std::future::Future<Output = ()> + 'a {
+    async move {
+        if agent.is_some() {
+            return;
+        }
+        if let Some(rx) = prebuild_rx.as_mut() {
+            if let Some((a, mcp)) = rx.recv().await {
+                *agent = Some(a);
+                *mcp_manager = mcp;
+            }
+            *prebuild_rx = None;
+        }
+    }
+}
+
+#[cfg(not(feature = "mcp"))]
+fn resolve_prebuild<'a>(
+    agent: &'a mut Option<AnyAgent>,
+    prebuild_rx: &'a mut Option<mpsc::Receiver<PrebuildPayload>>,
+) -> impl std::future::Future<Output = ()> + 'a {
+    async move {
+        if agent.is_some() {
+            return;
+        }
+        if let Some(rx) = prebuild_rx.as_mut() {
+            if let Some(a) = rx.recv().await {
+                *agent = Some(a);
+            }
+            *prebuild_rx = None;
+        }
+    }
+}
 
 /// Starts a single main agent run for `text` and records its abort handle.
 /// The ONLY place that sets `agent_rx`/`is_running` for user-driven runs, so the
@@ -350,7 +394,14 @@ async fn start_main_run(
     is_running: &mut bool,
     status_signals: &Option<StatusSignals>,
     #[cfg(feature = "mcp")] mcp_manager: &mut Option<McpClientManager>,
+    prebuild_rx: &mut Option<mpsc::Receiver<PrebuildPayload>>,
 ) {
+    // Wait for the background prebuild if it hasn't completed yet.
+    #[cfg(feature = "mcp")]
+    resolve_prebuild(agent, mcp_manager, prebuild_rx).await;
+    #[cfg(not(feature = "mcp"))]
+    resolve_prebuild(agent, prebuild_rx).await;
+
     #[cfg(feature = "mcp")]
     let mcp_ref = ensure_mcp_manager(mcp_manager, cfg).await;
     ensure_agent(
@@ -917,6 +968,57 @@ pub async fn run_interactive(
     let mut running = Arc::new(AtomicBool::new(true));
     let mut event_handle = Some(spawn_event_thread(user_tx.clone(), running.clone()));
 
+    // Prebuild the agent on a background task so the TUI is responsive from the
+    // first frame. The event thread is already buffering keystrokes; if the user
+    // submits before the build completes we wait for it in `start_main_run`.
+    let (prebuild_tx, prebuild_rx_raw) = mpsc::channel::<PrebuildPayload>(1);
+    let mut prebuild_rx = Some(prebuild_rx_raw);
+    if auto_trigger_msg.is_none() && agent.is_none() {
+        let client_clone = client.clone();
+        let session_model = session.model.to_string();
+        let cli_clone = cli.clone();
+        let cfg_clone = cfg.clone();
+        let context_clone = context.clone();
+        let permission_clone = permission.clone();
+        let ask_tx_clone = ask_tx.clone();
+        let sandbox_clone = sandbox.clone();
+        tokio::spawn(async move {
+            #[cfg(feature = "mcp")]
+            let mcp = if let Some(ref servers) = cfg_clone.mcp_servers {
+                if !servers.is_empty() {
+                    Some(McpClientManager::connect_all(servers).await)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            let model = client_clone.completion_model(session_model.clone());
+            let temperature =
+                crate::config::resolve_temperature(&cli_clone, &cfg_clone, &session_model);
+            let a = crate::provider::build_agent(
+                model,
+                &cli_clone,
+                &cfg_clone,
+                &context_clone,
+                permission_clone,
+                ask_tx_clone,
+                sandbox_clone,
+                reasoning_enabled,
+                temperature,
+                #[cfg(feature = "mcp")]
+                mcp.as_ref(),
+            )
+            .await;
+
+            #[cfg(feature = "mcp")]
+            let _ = prebuild_tx.send((a, mcp)).await;
+            #[cfg(not(feature = "mcp"))]
+            let _ = prebuild_tx.send(a).await;
+        });
+    }
+
     loop {
         tokio::select! {
             Some(ev) = user_rx.recv() => {
@@ -1191,6 +1293,7 @@ pub async fn run_interactive(
                                             &mut main_abort, &mut is_running,
                                             &status_signals,
                                             #[cfg(feature = "mcp")] &mut mcp_manager,
+                                            &mut prebuild_rx,
                                         ).await;
                                     }
                                     refresh_display(&mut renderer, &mut input, session, is_running, loop_label.as_deref(), context.current_prompt_name.as_deref(), perm_mode().as_deref(), chain_label_msg.as_deref(), btw_total_cost, btw_total_in, btw_total_out)?;
@@ -1312,6 +1415,7 @@ pub async fn run_interactive(
                                     &mut main_abort, &mut is_running,
                                     &status_signals,
                                     #[cfg(feature = "mcp")] &mut mcp_manager,
+                                    &mut prebuild_rx,
                                 ).await;
                                 refresh_display(&mut renderer, &mut input, session, is_running, loop_label.as_deref(), context.current_prompt_name.as_deref(), perm_mode().as_deref(), chain_label_msg.as_deref(), btw_total_cost, btw_total_in, btw_total_out)?;
                                 continue;
@@ -1764,6 +1868,7 @@ pub async fn run_interactive(
                                     &mut agent_rx, &mut main_abort, &mut is_running,
                                     &status_signals,
                                     #[cfg(feature = "mcp")] &mut mcp_manager,
+                                    &mut prebuild_rx,
                                 ).await;
                             }
                             }
@@ -1930,6 +2035,7 @@ pub async fn run_interactive(
                             &mut agent_rx, &mut main_abort, &mut is_running,
                             &status_signals,
                             #[cfg(feature = "mcp")] &mut mcp_manager,
+                            &mut prebuild_rx,
                         ).await;
                     }
                 }
@@ -1975,6 +2081,21 @@ pub async fn run_interactive(
                 refresh_display(&mut renderer, &mut input, session, is_running, loop_label.as_deref(), context.current_prompt_name.as_deref(), perm_mode().as_deref(), chain_label_msg.as_deref(), btw_total_cost, btw_total_in, btw_total_out)?;
             }
             else => {
+                // Poll the background prebuild; if it just completed, stash it.
+                if let Some(rx) = prebuild_rx.as_mut() {
+                    if let Ok(payload) = rx.try_recv() {
+                        #[cfg(feature = "mcp")]
+                        {
+                            agent = Some(payload.0);
+                            mcp_manager = payload.1;
+                        }
+                        #[cfg(not(feature = "mcp"))]
+                        {
+                            agent = Some(payload);
+                        }
+                        prebuild_rx = None;
+                    }
+                }
                 tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
             }
         }

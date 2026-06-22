@@ -53,6 +53,7 @@ pub(crate) fn copy_embedded_to(embedded: &Dir, dest: &Path) -> anyhow::Result<()
     Ok(())
 }
 
+#[derive(Clone)]
 pub struct ContextFiles {
     pub agents: Option<String>,
     pub prompts: HashMap<String, String>,

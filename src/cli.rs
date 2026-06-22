@@ -4,7 +4,7 @@ use compact_str::CompactString;
 use crate::config;
 use crate::config::types::EditSystem;
 
-#[derive(Parser, Debug, Default)]
+#[derive(Parser, Debug, Default, Clone)]
 #[command(name = "zerostack", version, about = "Minimal coding agent")]
 pub struct Cli {
     #[arg(short = 'p', long = "print", help = "Print response and exit")]
