@@ -723,6 +723,8 @@ pub async fn run_interactive(
 ) -> anyhow::Result<()> {
     let _guard = TerminalGuard::new()?;
 
+    // Display preference: whether the status bar shows the cost even at $0.0000.
+    session.show_cost_always = cfg.resolve_show_cost_always();
     // Status-bar git branch: seed now, then refresh on a throttle in the loop
     // (covers worktree switches and external `git checkout` without per-render IO).
     session.refresh_git_branch();

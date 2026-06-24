@@ -49,7 +49,7 @@ impl StatusLine {
         // Current context size and the model's max, e.g. "ctx 12k/1.0M 1%".
         let ctx_detail = format!(" ctx {}/{} {}%", fmt_tokens(used), fmt_tokens(ctx), pct);
 
-        let cost_str = if session.total_cost > 0.0 {
+        let cost_str = if session.total_cost > 0.0 || session.show_cost_always {
             format!(" ${:.4}", session.total_cost)
         } else {
             String::new()
