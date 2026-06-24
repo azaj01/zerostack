@@ -2,6 +2,8 @@
 
 #[cfg(all(test, feature = "acp"))]
 mod acp_tests;
+#[cfg(all(test, feature = "advisor"))]
+mod advisor_tests;
 #[cfg(all(test, feature = "archmd"))]
 mod archmd_tests;
 #[cfg(test)]
@@ -12,6 +14,8 @@ mod auth_tests;
 mod bash_tests;
 #[cfg(test)]
 mod btw_tests;
+#[cfg(test)]
+mod chain_tests;
 #[cfg(test)]
 mod checker_tests;
 #[cfg(test)]
@@ -32,6 +36,8 @@ mod loop_tests;
 mod markdown_tests;
 #[cfg(all(test, feature = "memory"))]
 mod memory_tests;
+#[cfg(test)]
+mod models_catalog_tests;
 #[cfg(all(test, feature = "multimodal"))]
 mod multimodal_tests;
 #[cfg(test)]
@@ -52,6 +58,8 @@ mod singleflight_tests;
 mod slash_add_tests;
 #[cfg(test)]
 mod slash_init_tests;
+#[cfg(all(test, unix))]
+mod status_signals_tests;
 #[cfg(test)]
 mod status_tests;
 #[cfg(all(test, feature = "subagents"))]

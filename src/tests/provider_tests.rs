@@ -2,8 +2,8 @@ use crate::auth::ProviderKind;
 use crate::config::{ApiStyle, CustomProviderConfig};
 use crate::provider::ModelEntry;
 use crate::provider::{
-    expand_env, is_agent_model, merge_extra_body, resolve_api_style, resolve_provider_config,
-    serialize_conversation,
+    expand_env, is_agent_model, merge_extra_body, openrouter_anthropic_routing, resolve_api_style,
+    resolve_provider_config, serialize_conversation,
 };
 use crate::session::{MessageRole, SessionMessage};
 use compact_str::CompactString;
@@ -256,4 +256,53 @@ fn merge_extra_body_handles_absent_sides() {
     assert_eq!(merge_extra_body(None, Some(val.clone())), Some(val.clone()));
     assert_eq!(merge_extra_body(Some(val.clone()), None), Some(val));
     assert_eq!(merge_extra_body(None, None), None);
+}
+
+// --- openrouter_anthropic_routing tests ---
+
+#[test]
+fn pins_anthropic_namespaced_openrouter_models() {
+    for id in [
+        "anthropic/claude-sonnet-4.6",
+        "anthropic/claude-opus-4.8",
+        "anthropic/claude-3.5-haiku",
+    ] {
+        let extra = openrouter_anthropic_routing(id).expect("should pin {id}");
+        assert_eq!(extra["provider"]["order"][0], "Anthropic");
+        assert_eq!(extra["provider"]["allow_fallbacks"], true);
+    }
+}
+
+#[test]
+fn pins_tilde_prefixed_latest_aliases() {
+    // OpenRouter floating aliases carry a leading `~` that is part of the
+    // real slug; they must still be pinned to the Anthropic route.
+    for id in [
+        "~anthropic/claude-sonnet-latest",
+        "~anthropic/claude-opus-latest",
+        "~anthropic/claude-haiku-latest",
+    ] {
+        assert!(
+            openrouter_anthropic_routing(id).is_some(),
+            "{id} should be pinned"
+        );
+    }
+}
+
+#[test]
+fn leaves_non_anthropic_openrouter_models_untouched() {
+    for id in [
+        "openai/gpt-4o",
+        "deepseek/deepseek-chat",
+        "google/gemini-2.5-pro",
+        "openrouter/auto",
+        // A non-Anthropic model that merely mentions claude in its path
+        // is not in the anthropic namespace and must not be pinned.
+        "somegateway/not-claude",
+    ] {
+        assert!(
+            openrouter_anthropic_routing(id).is_none(),
+            "{id} should not be pinned"
+        );
+    }
 }
