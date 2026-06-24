@@ -142,6 +142,8 @@ older daily logs are accessible via `/memory read` and `memory_search`.
 | ------- | ----------- |
 | `/mcp` | List connected MCP servers and their tool counts. |
 | `/mcp <server>` | List tools of a specific MCP server. |
+| `/mcp login <server>` | Run the OAuth 2.0 login flow for a URL server, then reconnect it. |
+| `/mcp logout <server>` | Remove a server's stored OAuth token. |
 
 ## Advisor (feature-gated)
 

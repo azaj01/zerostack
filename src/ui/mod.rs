@@ -1090,6 +1090,41 @@ pub async fn run_interactive(
                         refresh_display(&mut renderer, &mut input, session, is_running, loop_label.as_deref(), context.current_prompt_name.as_deref(), perm_mode().as_deref(), chain_label_msg.as_deref(), btw_total_cost, btw_total_in, btw_total_out)?;
                         continue;
                     }
+                    #[cfg(feature = "mcp")]
+                    UserEvent::McpLoginDone { server, error } => {
+                        if let Some(err) = error {
+                            renderer.write_line(&format!("login failed for '{}': {}", server, err), C_ERROR)?;
+                        } else {
+                            let server = server.to_string();
+                            let server_cfg = cfg.mcp_servers.as_ref().and_then(|m| m.get(&server).cloned());
+                            match (mcp_manager.as_mut(), server_cfg) {
+                                (Some(mgr), Some(scfg)) => {
+                                    match mgr.reconnect(&server, &scfg).await {
+                                        Ok(()) => {
+                                            let model = client.completion_model(session.model.to_string());
+                                            let temperature = crate::config::resolve_temperature(cli, cfg, &session.model);
+                                            let extra_body = crate::config::resolve_extra_body(cfg, &session.model);
+                                            agent = Some(crate::provider::build_agent(
+                                                model, cli, cfg, context,
+                                                permission.clone(), ask_tx.clone(), sandbox.clone(),
+                                                reasoning_enabled, temperature, extra_body,
+                                                mcp_manager.as_ref(),
+                                            ).await);
+                                            renderer.write_line(&format!("authorized and connected '{}'", server), C_AGENT)?;
+                                        }
+                                        Err(err) => {
+                                            renderer.write_line(&format!("authorized '{}' but reconnect failed: {}", server, err), C_ERROR)?;
+                                        }
+                                    }
+                                }
+                                _ => {
+                                    renderer.write_line(&format!("authorized '{}' (will connect on next start)", server), C_AGENT)?;
+                                }
+                            }
+                        }
+                        refresh_display(&mut renderer, &mut input, session, is_running, loop_label.as_deref(), context.current_prompt_name.as_deref(), perm_mode().as_deref(), chain_label_msg.as_deref(), btw_total_cost, btw_total_in, btw_total_out)?;
+                        continue;
+                    }
                     UserEvent::Key(key) => {
                         let is_ctrl_c = key.code == KeyCode::Char('c')
                             && key.modifiers.contains(KeyModifiers::CONTROL);
@@ -1660,6 +1695,58 @@ pub async fn run_interactive(
                                         }
                                         let _ = crate::session::storage::save_session(session);
                                     }
+                                    #[cfg(feature = "mcp")]
+                                    Err(e) if e.to_string().starts_with(crate::ui::slash::settings::DEFER_MCP_LOGIN) => {
+                                        let server = e.to_string()
+                                            .strip_prefix(crate::ui::slash::settings::DEFER_MCP_LOGIN)
+                                            .unwrap_or_default()
+                                            .trim()
+                                            .to_string();
+                                        // Re-resolve the URL server + OAuth settings from config.
+                                        let resolved = cfg.mcp_servers.as_ref().and_then(|m| m.get(&server)).and_then(|s| {
+                                            if let crate::extras::mcp::config::McpServerConfig::Url { url, oauth, .. } = s {
+                                                oauth.as_ref().and_then(|o| o.settings()).map(|set| (url.clone(), set))
+                                            } else {
+                                                None
+                                            }
+                                        });
+                                        match resolved {
+                                            Some((url, settings)) => {
+                                                renderer.write_line(&format!("starting OAuth login for '{}'...", server), C_AGENT)?;
+                                                match crate::extras::mcp::oauth::begin_login(&server, &url, &settings).await {
+                                                    Ok(login) => {
+                                                        // Auto-copy so the user can paste it; print it on its
+                                                        // own line so terminals linkify it and it selects cleanly.
+                                                        copy_to_clipboard(&login.auth_url);
+                                                        renderer.write_line("open this URL to authorize (copied to clipboard):", C_AGENT)?;
+                                                        renderer.write_line(&login.auth_url, Color::Cyan)?;
+                                                        renderer.write_line(
+                                                            &format!("waiting for authorization on 127.0.0.1:{} in the background...", settings.redirect_port()),
+                                                            Color::DarkGrey,
+                                                        )?;
+                                                        // Run the (long) browser wait off the event loop so the
+                                                        // TUI stays responsive; report back via UserEvent.
+                                                        let tx = user_tx.clone();
+                                                        let sname = compact_str::CompactString::new(&server);
+                                                        tokio::spawn(async move {
+                                                            let error = login
+                                                                .wait_for_callback(std::time::Duration::from_secs(180))
+                                                                .await
+                                                                .err()
+                                                                .map(|e| compact_str::CompactString::new(e.to_string()));
+                                                            let _ = tx.send(crate::event::UserEvent::McpLoginDone { server: sname, error }).await;
+                                                        });
+                                                    }
+                                                    Err(err) => {
+                                                        renderer.write_line(&format!("login setup failed for '{}': {}", server, err), C_ERROR)?;
+                                                    }
+                                                }
+                                            }
+                                            None => {
+                                                renderer.write_line(&format!("cannot start login for '{}' (not an OAuth URL server)", server), C_ERROR)?;
+                                            }
+                                        }
+                                    }
                                     #[cfg(feature = "git-worktree")]
                                     Err(e) if e.downcast_ref::<crate::extras::git_worktree::DeferredWorktreeAction>().is_some() => {
                                         let action = e.downcast_ref::<crate::extras::git_worktree::DeferredWorktreeAction>().unwrap();
@@ -1905,6 +1992,29 @@ pub async fn run_interactive(
                         }
                     }
                 }
+            }
+            // Consume the background prebuild as soon as it is ready (while idle)
+            // so MCP connection notices render in the transcript instead of the
+            // prebuild's stderr logging racing against the alt-screen TUI.
+            Some(prebuilt) = async { prebuild_rx.as_mut()?.recv().await }, if agent.is_none() => {
+                #[cfg(feature = "mcp")]
+                {
+                    let (built_agent, built_mcp) = prebuilt;
+                    agent = Some(built_agent);
+                    mcp_manager = built_mcp;
+                    if let Some(m) = mcp_manager.as_mut() {
+                        for notice in m.take_notices() {
+                            renderer.write_line(&notice, C_ERROR)?;
+                        }
+                    }
+                }
+                #[cfg(not(feature = "mcp"))]
+                {
+                    agent = Some(prebuilt);
+                }
+                prebuild_rx = None;
+                refresh_display(&mut renderer, &mut input, session, is_running, loop_label.as_deref(), context.current_prompt_name.as_deref(), perm_mode().as_deref(), chain_label_msg.as_deref(), btw_total_cost, btw_total_in, btw_total_out)?;
+                continue;
             }
             Some(event) = async {
                 agent_rx.as_mut()?.recv().await

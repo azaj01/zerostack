@@ -76,4 +76,11 @@ pub enum UserEvent {
         row: u16,
         col: u16,
     },
+    /// An interactive MCP OAuth login finished in a background task. `error` is
+    /// `None` on success. Handled by the TUI loop to reconnect the server.
+    #[cfg(feature = "mcp")]
+    McpLoginDone {
+        server: CompactString,
+        error: Option<CompactString>,
+    },
 }

@@ -72,6 +72,14 @@ pub fn handle(_parts: &[&str], ctx: &mut SlashCtx<'_>) {
             ctx.renderer,
             "  /mcp <server>          list tools of an MCP server",
         );
+        write_result(
+            ctx.renderer,
+            "  /mcp login <server>    OAuth login to an MCP server",
+        );
+        write_result(
+            ctx.renderer,
+            "  /mcp logout <server>   remove a server's stored OAuth token",
+        );
     }
     write_result(ctx.renderer, "  /clear [/new]          clear screen");
     write_result(ctx.renderer, "  /undo                  undo last exchange");

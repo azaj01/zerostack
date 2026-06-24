@@ -437,6 +437,50 @@ servers:
 }
 ```
 
+### OAuth for URL servers
+
+URL-based servers can authenticate with OAuth 2.0 (authorization code + PKCE).
+Add an `oauth` field. Use `true` for defaults (dynamic client registration, no
+extra scopes), or an object for explicit settings:
+
+```json
+{
+  "mcp_servers": {
+    "my-oauth-server": {
+      "url": "https://example.com/mcp",
+      "oauth": true
+    },
+    "scoped-server": {
+      "url": "https://api.example.com/mcp",
+      "oauth": {
+        "scopes": ["read", "write"],
+        "client_id": "pre-registered-client-id",
+        "redirect_port": 8970
+      }
+    }
+  }
+}
+```
+
+OAuth fields (all optional):
+
+| Field           | Default                        | Description                                                              |
+| --------------- | ------------------------------ | ------------------------------------------------------------------------ |
+| `scopes`        | none                           | Scopes to request during authorization.                                  |
+| `client_id`     | dynamic registration           | Pre-registered client id. When omitted, the client registers on the fly. |
+| `redirect_port` | `8970`                         | Loopback port for the redirect URI `http://127.0.0.1:<port>/callback`.   |
+
+The first time you connect, run `/mcp login <server>` inside the TUI. zerostack
+prints an authorization URL and copies it to your clipboard; open it in a
+browser, approve access, and the redirect is caught on the loopback port. The
+browser wait runs in the background, so the TUI stays responsive (you can keep
+working or select the URL with the mouse to copy it). The token is saved to
+`<data_dir>/mcp-oauth/<server>.json` (mode 0600 on unix), and the server
+reconnects automatically once authorization completes. Later sessions reuse the
+stored refresh token and reconnect without a browser. Use
+`/mcp logout <server>` to remove a stored token. A server with OAuth enabled but
+no stored token fails to connect until you log in.
+
 ### Recommended MCP servers
 
 When `mcp_servers` is not explicitly set, three recommended MCP servers are

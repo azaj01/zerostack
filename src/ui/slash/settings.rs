@@ -326,33 +326,28 @@ async fn handle_editsys(parts: &[&str], ctx: &mut SlashCtx<'_>) -> anyhow::Resul
     Ok(())
 }
 
+/// Prefix understood by the caller in `ui::mod` to start the interactive OAuth
+/// login for a server. The login (browser wait) runs there as a background task
+/// so the TUI stays responsive; on success the server is reconnected.
+#[cfg(feature = "mcp")]
+pub(crate) const DEFER_MCP_LOGIN: &str = "DEFER_MCP_LOGIN:";
+
 #[cfg(feature = "mcp")]
 async fn handle_mcp(parts: &[&str], ctx: &mut SlashCtx<'_>) -> anyhow::Result<()> {
+    if parts.len() >= 2 && parts[1] == "login" {
+        return handle_mcp_login(parts.get(2).map(|s| s.trim()), ctx).await;
+    }
+    if parts.len() >= 2 && parts[1] == "logout" {
+        return handle_mcp_logout(parts.get(2).map(|s| s.trim()), ctx);
+    }
+
     let Some(mgr) = ctx.mcp_manager else {
         write_ok(ctx.renderer, "no MCP servers configured");
         return Ok(());
     };
-    if mgr.handles.is_empty() {
-        write_ok(ctx.renderer, "no MCP servers connected");
-    } else if parts.len() == 1 {
-        write_ok(ctx.renderer, "MCP servers:");
-        for handle in &mgr.handles {
-            match handle.list_tools().await {
-                Ok(tools) => {
-                    write_result(
-                        ctx.renderer,
-                        format!("  {} ({} tools)", handle.server_name, tools.len()),
-                    );
-                }
-                Err(e) => {
-                    write_error(
-                        ctx.renderer,
-                        format!("  {} (error: {})", handle.server_name, e),
-                    );
-                }
-            }
-        }
-    } else {
+
+    // `/mcp <server>` — list tools for one server.
+    if parts.len() > 1 {
         let name = parts[1].trim();
         if let Some(handle) = mgr.handles.iter().find(|h| h.server_name == name) {
             match handle.list_tools().await {
@@ -374,9 +369,134 @@ async fn handle_mcp(parts: &[&str], ctx: &mut SlashCtx<'_>) -> anyhow::Result<()
                     );
                 }
             }
+        } else if is_oauth_server(ctx, name) {
+            write_error(
+                ctx.renderer,
+                format!("server '{name}' is not connected (run /mcp login {name})"),
+            );
+        } else if server_is_configured(ctx, name) {
+            write_error(ctx.renderer, format!("server '{name}' is not connected"));
         } else {
-            write_error(ctx.renderer, format!("unknown MCP server: '{}'", name));
+            write_error(ctx.renderer, format!("unknown MCP server: '{name}'"));
         }
+        return Ok(());
+    }
+
+    // `/mcp` — list all configured servers, green = connected, red = not.
+    let Some(servers) = ctx.cfg.mcp_servers.as_ref().filter(|s| !s.is_empty()) else {
+        write_ok(ctx.renderer, "no MCP servers configured");
+        return Ok(());
+    };
+    write_ok(ctx.renderer, "MCP servers:");
+    let mut names: Vec<&String> = servers.keys().collect();
+    names.sort();
+    for name in names {
+        if let Some(handle) = mgr
+            .handles
+            .iter()
+            .find(|h| h.server_name.as_str() == name.as_str())
+        {
+            let label = match handle.list_tools().await {
+                Ok(tools) => format!("  + {name} ({} tools)", tools.len()),
+                Err(_) => format!("  + {name} (connected)"),
+            };
+            ctx.renderer
+                .write_line(&label, crossterm::style::Color::Green)?;
+        } else {
+            let oauth = matches!(
+                servers.get(name),
+                Some(crate::extras::mcp::config::McpServerConfig::Url { oauth: Some(o), .. })
+                    if o.settings().is_some()
+            );
+            let label = if oauth {
+                format!("  - {name} (unauthenticated, run /mcp login {name})")
+            } else {
+                format!("  - {name} (not connected)")
+            };
+            ctx.renderer
+                .write_line(&label, crossterm::style::Color::Red)?;
+        }
+    }
+    Ok(())
+}
+
+/// True if a server name exists in config.
+#[cfg(feature = "mcp")]
+fn server_is_configured(ctx: &SlashCtx<'_>, name: &str) -> bool {
+    ctx.cfg
+        .mcp_servers
+        .as_ref()
+        .is_some_and(|m| m.contains_key(name))
+}
+
+/// True if a configured server is a URL server with OAuth enabled.
+#[cfg(feature = "mcp")]
+fn is_oauth_server(ctx: &SlashCtx<'_>, name: &str) -> bool {
+    use crate::extras::mcp::config::McpServerConfig;
+    matches!(
+        ctx.cfg.mcp_servers.as_ref().and_then(|m| m.get(name)),
+        Some(McpServerConfig::Url { oauth: Some(o), .. }) if o.settings().is_some()
+    )
+}
+
+/// Resolve a URL-based server's OAuth settings + url from config, or report why not.
+#[cfg(feature = "mcp")]
+fn resolve_oauth_server(
+    ctx: &SlashCtx<'_>,
+    name: &str,
+) -> Result<(String, crate::extras::mcp::config::OAuthSettings), String> {
+    use crate::extras::mcp::config::McpServerConfig;
+    let servers = ctx
+        .cfg
+        .mcp_servers
+        .as_ref()
+        .ok_or_else(|| "no MCP servers configured".to_string())?;
+    let server = servers
+        .get(name)
+        .ok_or_else(|| format!("unknown MCP server: '{name}'"))?;
+    match server {
+        McpServerConfig::Url { url, oauth, .. } => {
+            let settings = oauth
+                .as_ref()
+                .and_then(|o| o.settings())
+                .ok_or_else(|| format!("server '{name}' does not have OAuth enabled"))?;
+            Ok((url.clone(), settings))
+        }
+        McpServerConfig::Command { .. } => Err(format!(
+            "server '{name}' is command-based; OAuth applies to URL servers"
+        )),
+    }
+}
+
+#[cfg(feature = "mcp")]
+async fn handle_mcp_login(name: Option<&str>, ctx: &mut SlashCtx<'_>) -> anyhow::Result<()> {
+    let Some(name) = name.filter(|n| !n.is_empty()) else {
+        write_error(ctx.renderer, "usage: /mcp login <server>");
+        return Ok(());
+    };
+    // Validate config here so errors get friendly messages. The actual login
+    // (network discovery + browser wait) runs in the event loop, which spawns
+    // the wait as a background task so the TUI never freezes.
+    if let Err(e) = resolve_oauth_server(ctx, name) {
+        write_error(ctx.renderer, e);
+        return Ok(());
+    }
+    Err(anyhow::anyhow!("{}{}", DEFER_MCP_LOGIN, name))
+}
+
+#[cfg(feature = "mcp")]
+fn handle_mcp_logout(name: Option<&str>, ctx: &mut SlashCtx<'_>) -> anyhow::Result<()> {
+    let Some(name) = name.filter(|n| !n.is_empty()) else {
+        write_error(ctx.renderer, "usage: /mcp logout <server>");
+        return Ok(());
+    };
+    match crate::extras::mcp::oauth::logout(name) {
+        Ok(true) => write_ok(
+            ctx.renderer,
+            format!("removed stored OAuth token for '{name}' (effective next start)"),
+        ),
+        Ok(false) => write_ok(ctx.renderer, format!("no stored OAuth token for '{name}'")),
+        Err(e) => write_error(ctx.renderer, format!("logout failed: {e}")),
     }
     Ok(())
 }

@@ -34,6 +34,8 @@ mod list_dir_tests;
 mod loop_tests;
 #[cfg(test)]
 mod markdown_tests;
+#[cfg(all(test, feature = "mcp"))]
+mod mcp_oauth_tests;
 #[cfg(all(test, feature = "memory"))]
 mod memory_tests;
 #[cfg(test)]

@@ -7,7 +7,7 @@ mod memory;
 mod providers;
 pub(crate) mod review;
 mod session;
-mod settings;
+pub(crate) mod settings;
 
 pub(crate) use providers::warm_model_cache;
 

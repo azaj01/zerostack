@@ -1,5 +1,6 @@
 pub mod client;
 pub mod config;
+pub mod oauth;
 pub mod tool;
 
 use std::collections::HashMap;
@@ -12,11 +13,16 @@ use crate::permission::checker::PermCheck;
 
 pub struct McpClientManager {
     pub handles: Vec<client::McpClientHandle>,
+    /// Connection failures collected during `connect_all`, to be surfaced by the
+    /// TUI via the renderer. We do NOT log these at `warn` because that writes to
+    /// stderr, which corrupts the alt-screen TUI (overlapping the input box).
+    pub notices: Vec<CompactString>,
 }
 
 impl McpClientManager {
     pub async fn connect_all(configs: &HashMap<String, config::McpServerConfig>) -> Self {
         let mut handles = Vec::new();
+        let mut notices = Vec::new();
         for (name, cfg) in configs {
             match client::McpClientHandle::connect(CompactString::new(name.clone()), cfg).await {
                 Ok(handle) => {
@@ -24,11 +30,19 @@ impl McpClientManager {
                     handles.push(handle);
                 }
                 Err(e) => {
-                    tracing::warn!("Failed to connect to MCP server '{}': {e}", name);
+                    tracing::debug!("Failed to connect to MCP server '{}': {e}", name);
+                    notices.push(CompactString::new(format!(
+                        "MCP server '{name}' not connected: {e}"
+                    )));
                 }
             }
         }
-        Self { handles }
+        Self { handles, notices }
+    }
+
+    /// Drain and return any pending connection notices.
+    pub fn take_notices(&mut self) -> Vec<CompactString> {
+        std::mem::take(&mut self.notices)
     }
 
     pub async fn collect_tools(
@@ -61,6 +75,20 @@ impl McpClientManager {
             }
         }
         all_tools
+    }
+
+    /// (Re)connect a single server, replacing any existing handle for it.
+    /// Used after an interactive OAuth login so the server's tools become
+    /// available without restarting the session.
+    pub async fn reconnect(
+        &mut self,
+        name: &str,
+        cfg: &config::McpServerConfig,
+    ) -> anyhow::Result<()> {
+        let handle = client::McpClientHandle::connect(CompactString::new(name), cfg).await?;
+        self.handles.retain(|h| h.server_name != name);
+        self.handles.push(handle);
+        Ok(())
     }
 
     pub async fn shutdown(self) {

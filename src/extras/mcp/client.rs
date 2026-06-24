@@ -33,15 +33,34 @@ impl McpClientHandle {
                     running_service,
                 })
             }
-            McpServerConfig::Url { url, headers } => {
+            McpServerConfig::Url {
+                url,
+                headers,
+                oauth,
+            } => {
                 let custom_headers = parse_headers(headers)?;
                 let cfg = rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig::with_uri(url.as_str())
                     .custom_headers(custom_headers);
-                type HttpClient = rmcp::transport::StreamableHttpClientTransport<reqwest::Client>;
-                let transport = HttpClient::from_config(cfg);
-                let running_service = serve_client((), transport).await.map_err(|e| {
-                    anyhow::anyhow!("MCP HTTP connection failed for '{server_name}': {e}")
-                })?;
+
+                let oauth_settings = oauth.as_ref().and_then(|o| o.settings());
+                let running_service = if let Some(settings) = oauth_settings {
+                    let auth_client =
+                        super::oauth::build_auth_client(&server_name, url, &settings).await?;
+                    type AuthHttpClient = rmcp::transport::StreamableHttpClientTransport<
+                        rmcp::transport::auth::AuthClient<reqwest::Client>,
+                    >;
+                    let transport = AuthHttpClient::with_client(auth_client, cfg);
+                    serve_client((), transport).await.map_err(|e| {
+                        anyhow::anyhow!("MCP HTTP connection failed for '{server_name}': {e}")
+                    })?
+                } else {
+                    type HttpClient =
+                        rmcp::transport::StreamableHttpClientTransport<reqwest::Client>;
+                    let transport = HttpClient::from_config(cfg);
+                    serve_client((), transport).await.map_err(|e| {
+                        anyhow::anyhow!("MCP HTTP connection failed for '{server_name}': {e}")
+                    })?
+                };
                 Ok(Self {
                     server_name,
                     running_service,
