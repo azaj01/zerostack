@@ -65,6 +65,10 @@ pub struct StatusLineSegment {
     pub right: Option<CompactString>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<IconSpec>,
+    /// Force a numeric item (`tokens_input`, `tokens_output`, `cost`) to show
+    /// even when its value is zero (normally hidden).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub always: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

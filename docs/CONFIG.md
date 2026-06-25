@@ -381,6 +381,7 @@ Each segment has:
 | `left`  | Powerline cap glyph drawn before the item. A name (see below) or any literal string. Optional. |
 | `right` | Powerline cap glyph drawn after the item. Optional. |
 | `icon`  | Glyph shown before the value. `true` uses the item's built-in icon; a string sets a custom one (a named icon or a literal glyph). Optional. Needs a Nerd Font. |
+| `always` | Force a numeric item (`tokens_input`, `tokens_output`, `cost`) to show even when its value is `0` (normally hidden until non-zero). Optional. |
 
 Items with a built-in icon (used by `icon = true`): `git_branch`, `git_changes`,
 `git_status`, `cwd`, `model`, `cost`, `context_used`/`context_max`/
@@ -418,7 +419,8 @@ Available items:
 | --------------------- | ----- |
 | `session_name`        | The session name (hidden when empty). |
 | `session_id`          | The first 8 characters of the session id. |
-| `cwd`                 | The working directory name. |
+| `cwd`                 | The working directory name (folder only). |
+| `cwd_full`            | The full working directory path, with `$HOME` shortened to `~`. |
 | `git_branch`          | Current git branch (or short commit on detached HEAD). |
 | `git_changes`         | Working-tree changes: `+staged ~modified -deleted ?untracked` (non-zero parts only; hidden when clean). |
 | `git_status`          | Upstream sync and dirty marker: `↑ahead ↓behind *`, or `✓` when clean and in sync. |

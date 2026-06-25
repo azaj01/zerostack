@@ -224,3 +224,44 @@ fn item_icon_known_and_unknown() {
     assert_eq!(statusline::item_icon("git_branch"), Some("\u{e0a0}"));
     assert_eq!(statusline::item_icon("tokens_input"), None);
 }
+
+#[test]
+fn cwd_full_vs_cwd_folder() {
+    let spec = StatusLineConfig {
+        lines: vec![StatusLineLine {
+            segments: vec![seg("cwd"), seg("separator"), seg("cwd_full")],
+        }],
+    };
+    let mut session = Session::new("openrouter", "m", 1000);
+    session.working_dir = "/var/lib/zerostack-demo/project".into();
+    let lines = statusline::build_lines(&spec, &session, &ctx());
+    // cwd = folder name, cwd_full = full path (no $HOME prefix here, unchanged)
+    assert_eq!(
+        line_text(&lines[0]),
+        "project /var/lib/zerostack-demo/project"
+    );
+}
+
+#[test]
+fn always_shows_zero_tokens() {
+    let hidden = StatusLineConfig {
+        lines: vec![StatusLineLine {
+            segments: vec![seg("tokens_input")],
+        }],
+    };
+    let forced = StatusLineConfig {
+        lines: vec![StatusLineLine {
+            segments: vec![StatusLineSegment {
+                item: "tokens_input".into(),
+                always: Some(true),
+                ..Default::default()
+            }],
+        }],
+    };
+    let session = Session::new("openrouter", "m", 1000); // total_input_tokens == 0
+    assert!(line_text(&statusline::build_lines(&hidden, &session, &ctx())[0]).is_empty());
+    assert_eq!(
+        line_text(&statusline::build_lines(&forced, &session, &ctx())[0]),
+        "0"
+    );
+}

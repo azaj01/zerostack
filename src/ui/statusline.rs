@@ -117,7 +117,8 @@ fn build_line(line: &StatusLineLine, session: &Session, ctx: &StatusContext) -> 
                 ));
             }
             item => {
-                if let Some(mut text) = resolve_item(item, session, ctx) {
+                let always = seg.always.unwrap_or(false);
+                if let Some(mut text) = resolve_item(item, session, ctx, always) {
                     if let Some(glyph) = resolve_icon(seg.icon.as_ref(), item) {
                         text = format!("{glyph} {text}");
                     }
@@ -173,7 +174,13 @@ fn build_line(line: &StatusLineLine, session: &Session, ctx: &StatusContext) -> 
 }
 
 /// Resolve a non-separator item to display text, or `None` to skip it.
-fn resolve_item(item: &str, session: &Session, ctx: &StatusContext) -> Option<String> {
+/// `always` forces zero-valued numeric items (tokens, cost) to render.
+fn resolve_item(
+    item: &str,
+    session: &Session,
+    ctx: &StatusContext,
+    always: bool,
+) -> Option<String> {
     match item {
         "session_name" => {
             let n = session.name.as_str();
@@ -184,13 +191,12 @@ fn resolve_item(item: &str, session: &Session, ctx: &StatusContext) -> Option<St
         "git_changes" => session.git_status.as_ref().and_then(format_changes),
         "git_status" => session.git_status.as_ref().map(format_status),
         "cwd" => Some(basename(&session.working_dir)),
+        "cwd_full" => Some(contract_home(&session.working_dir)),
         "model" => Some(session.model.to_string()),
-        "tokens_input" => {
-            (session.total_input_tokens > 0).then(|| fmt_tokens(session.total_input_tokens))
-        }
-        "tokens_output" => {
-            (session.total_output_tokens > 0).then(|| fmt_tokens(session.total_output_tokens))
-        }
+        "tokens_input" => (session.total_input_tokens > 0 || always)
+            .then(|| fmt_tokens(session.total_input_tokens)),
+        "tokens_output" => (session.total_output_tokens > 0 || always)
+            .then(|| fmt_tokens(session.total_output_tokens)),
         "context_used" => {
             // A `~` marks the figure as an estimate until the provider reports
             // real usage (it then snaps to the exact number).
@@ -207,7 +213,7 @@ fn resolve_item(item: &str, session: &Session, ctx: &StatusContext) -> Option<St
                 .unwrap_or(0);
             Some(format!("{pct}%"))
         }
-        "cost" => (session.total_cost > 0.0 || session.show_cost_always)
+        "cost" => (session.total_cost > 0.0 || session.show_cost_always || always)
             .then(|| format!("${:.4}", session.total_cost)),
         "prompt" => ctx.prompt_name.map(|s| format!("prompt:{s}")),
         "mode" => ctx
@@ -247,6 +253,19 @@ fn basename(dir: &str) -> String {
         .and_then(|n| n.to_str())
         .unwrap_or(dir)
         .to_string()
+}
+
+/// Full working-directory path with `$HOME` shortened to `~`.
+fn contract_home(dir: &str) -> String {
+    if let Some(home) = dirs::home_dir().and_then(|h| h.to_str().map(|s| s.to_string())) {
+        if dir == home {
+            return "~".to_string();
+        }
+        if let Some(rest) = dir.strip_prefix(&format!("{home}/")) {
+            return format!("~/{rest}");
+        }
+    }
+    dir.to_string()
 }
 
 /// `+staged ~modified -deleted ?untracked`, only the non-zero parts; `None`
@@ -308,7 +327,7 @@ pub fn item_icon(item: &str) -> Option<&'static str> {
         "git_branch" => "\u{e0a0}",                                          //
         "git_changes" => "\u{f044}",                                         //
         "git_status" => "\u{f021}",                                          //
-        "cwd" => "\u{f07b}",                                                 //
+        "cwd" | "cwd_full" => "\u{f07b}",                                    //
         "model" => "\u{f2db}",                                               //
         "cost" => "\u{f155}",                                                //
         "context_used" | "context_max" | "context_percentage" => "\u{f1c0}", //
