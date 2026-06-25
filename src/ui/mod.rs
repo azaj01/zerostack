@@ -775,6 +775,10 @@ pub async fn run_interactive(
     let mut response_start_line: Option<usize> = None;
     let mut show_reasoning = true;
     let mut reasoning_enabled = true;
+    // Seed the context-overhead estimate so the status bar reflects the system
+    // prompt + context files from T0, before the first request is calibrated.
+    // `ensure_agent` refreshes this whenever the preamble is rebuilt.
+    session.overhead_tokens = crate::agent::builder::estimate_overhead(context, reasoning_enabled);
     let mut was_reasoning = false;
     let mut todo_tools_enabled = false;
     #[allow(unused_mut)]

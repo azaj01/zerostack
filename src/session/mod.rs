@@ -74,6 +74,15 @@ pub struct Session {
     /// runtime, not persisted.
     #[serde(skip)]
     pub git_branch: Option<CompactString>,
+    /// Estimated tokens for the fixed request overhead that never lives in
+    /// `messages` — system prompt, tool-use preamble, context files, memory.
+    /// Used only before the first real calibration (see
+    /// [`effective_context_tokens`](Self::effective_context_tokens)); once the
+    /// provider reports real usage, the calibration anchor already includes this
+    /// overhead, so it must not be added again. Recomputed at runtime, not
+    /// persisted.
+    #[serde(skip)]
+    pub overhead_tokens: u64,
 }
 
 impl Session {
@@ -131,6 +140,7 @@ impl Session {
             pending_media: Vec::new(),
             show_cost_always: false,
             git_branch: None,
+            overhead_tokens: 0,
         }
     }
 
@@ -234,7 +244,11 @@ impl Session {
 
     pub fn effective_context_tokens(&self) -> u64 {
         if self.calibrated_tokens == 0 {
-            return self.total_estimated_tokens;
+            // No real usage yet: per-message estimates cover only `messages`, so
+            // add the fixed overhead (system prompt, tools, context files) that
+            // every request also carries. After calibration this overhead is
+            // already inside the anchor, so it is not added in that branch.
+            return self.overhead_tokens.saturating_add(self.total_estimated_tokens);
         }
         let start = self.calibrated_msg_count.min(self.messages.len());
         let delta: u64 = self.messages[start..]
