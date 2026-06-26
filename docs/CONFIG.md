@@ -182,6 +182,7 @@ Accepted top-level keys:
 | `sandbox`                 | boolean | Run bash commands in the bubblewrap sandbox. Default: `false`.                                                                                                              |
 | `default_permission_mode` | string  | Permission mode when no mode boolean/CLI flag is set. Accepts: `standard` (default), `restrictive`, `readonly`, `guarded`, `yolo`.                                          |
 | `show_tool_details`       | boolean or integer | Show tool-result previews in the TUI. `false` hides output, `true` shows all lines, an integer limits to that many lines (e.g. `3`). Default: `3`. |
+| `statusline`              | table   | Configurable status bar (up to 3 lines of colored segments). When absent, a built-in default layout is used. See Status bar below. |
 | `chat_left_margin`        | integer | Left padding (columns) for the chat area only; input and status rows are unaffected. Default: `0`. |
 | `default_prompt`          | string  | Prompt name to activate on startup. Default: `code`. If the prompt file has a `%%mode=<mode>` first-line directive, the security mode is set automatically (see Prompt directives below). |
 | `editor`                  | string  | Editor command for `Ctrl+G` (default: `$EDITOR` env var, then `editor`, then `nano`).                                                                                        |
@@ -328,6 +329,130 @@ understands may be ignored or rejected by another. Unlike `temperature`, a
 global `extra_body` does not follow model switches, so prefer setting it per
 `quick_models` entry — bundled with the matching `provider`/`model` — when the
 parameter is tied to a specific provider.
+
+## Status bar
+
+The status bar at the bottom is configurable through `[statusline]`: up to 3
+lines, each an ordered list of segments. When `[statusline]` is absent, a
+built-in single-line layout is used.
+
+```toml
+# Line 1
+[[statusline.lines]]
+segments = [
+  { item = "cwd", color = "blue" },
+  { item = "separator", text = " " },
+  { item = "git_branch", color = "magenta" },
+  { item = "git_changes", color = "yellow" },
+  { item = "flex_separator" },          # fills the row, pushing the rest right
+  { item = "context_used", color = "green" },
+  { item = "separator", text = "/" },
+  { item = "context_max", color = "green" },
+  { item = "separator", text = " " },
+  { item = "context_percentage", color = "green" },
+]
+
+# Line 2 (optional)
+[[statusline.lines]]
+segments = [
+  { item = "session_name" },
+  { item = "separator", text = "  " },
+  { item = "session_id", color = "dark_grey" },
+  { item = "flex_separator" },
+  { item = "tokens_input", color = "cyan" },
+  { item = "separator", text = " " },
+  { item = "tokens_output", color = "cyan" },
+  { item = "separator", text = " " },
+  { item = "cost", color = "green" },
+]
+
+# Line 3 (optional)
+[[statusline.lines]]
+segments = [{ item = "prompt", color = "white", bg = "#202020" }]
+```
+
+Each segment has:
+
+| Field   | Description |
+| ------- | ----------- |
+| `item`  | The element to show (required). See the list below. |
+| `color` | Foreground color: a name (`red`, `dark_cyan`, `light_blue`, ...) or `#rrggbb`. Optional. |
+| `bg`    | Background color, same format. Optional. |
+| `text`  | Literal text for the `separator` item. Optional (defaults to a space). |
+| `left`  | Powerline cap glyph drawn before the item. A name (see below) or any literal string. Optional. |
+| `right` | Powerline cap glyph drawn after the item. Optional. |
+| `icon`  | Glyph shown before the value. `true` uses the item's built-in icon; a string sets a custom one (a named icon or a literal glyph). Optional. Needs a Nerd Font. |
+| `always` | Force a numeric item (`tokens_input`, `tokens_output`, `cost`) to show even when its value is `0` (normally hidden until non-zero). Optional. |
+
+Items with a built-in icon (used by `icon = true`): `git_branch`, `git_changes`,
+`git_status`, `cwd`, `model`, `cost`, `context_used`/`context_max`/
+`context_percentage`, `session_name`/`session_id`, `prompt`, `mode`, `loop`,
+`btw`, `compaction`. Named custom icons for `icon = "<name>"`: `branch`,
+`folder`, `chip`, `dollar`, `database`, `hash`, `terminal`, `lock`, `pencil`,
+`sync`. Any other value is used literally, so a raw codepoint works too.
+
+```toml
+[[statusline.lines]]
+segments = [
+  { item = "git_branch", color = "magenta", icon = true },
+  { item = "cwd", color = "light_blue", icon = "folder" },
+]
+```
+
+`left`/`right` caps are drawn in the segment's `bg` color (falling back to its
+`color`) over the status-bar background, so they read as the segment's edge.
+They render only when the item is shown, and need a Nerd Font / Powerline font.
+Named caps: `pl_right` (), `pl_left` (), `pl_right_thin` (),
+`pl_left_thin` (), `pl_round_right` (), `pl_round_left` (),
+`pl_flame_right`, `pl_flame_left`. Any other value is used as-is, so a raw
+codepoint like `""` also works. Example:
+
+```toml
+[[statusline.lines]]
+segments = [
+  { item = "model", color = "white", bg = "#3b4252", left = "pl_round_left", right = "pl_round_right" },
+]
+```
+
+Available items:
+
+| Item                  | Shows |
+| --------------------- | ----- |
+| `session_name`        | The session name (hidden when empty). |
+| `session_id`          | The first 8 characters of the session id. |
+| `cwd`                 | The working directory name (folder only). |
+| `cwd_full`            | The full working directory path, with `$HOME` shortened to `~`. |
+| `worktree`            | Linked git worktree name (hidden when not in a linked worktree). |
+| `git_branch`          | Current git branch (or short commit on detached HEAD). |
+| `git_changes`         | Working-tree changes: `+staged ~modified -deleted ?untracked` (non-zero parts only; hidden when clean). |
+| `git_status`          | Upstream sync and dirty marker: `↑ahead ↓behind *`, or `✓` when clean and in sync. |
+| `model`               | The active model id. |
+| `model_short`         | The model id without its provider prefix (e.g. `deepseek-v4-pro`). |
+| `provider`            | The active provider name. |
+| `tokens_input`        | Total input tokens this session. |
+| `tokens_output`       | Total output tokens this session. |
+| `context_used`        | Current context size in tokens. |
+| `context_max`         | The model's context window. |
+| `context_percentage`  | Context used as a percentage of the max. |
+| `cost`                | Session cost (hidden at `$0.0000` unless `show_cost_always` is set). |
+| `prompt`              | Active prompt (`prompt:<name>`). |
+| `mode`                | Security mode when not `standard` (`mode:<name>`). |
+| `loop`                | Active loop label. |
+| `chain`               | Chain-of-prompts label. |
+| `compaction`          | Number of compactions (`cmp:<n>`). |
+| `btw`                 | `/btw` side-question token/cost usage. |
+| `reasoning`           | Shows `reasoning` when reasoning is enabled (hidden when off). |
+| `message_count`       | Number of messages in the session. |
+| `session_age`         | Time since the session was created (e.g. `5m`, `2h10m`). |
+| `session_updated`     | Time since the last message (same format). |
+| `clock`               | Current local time (`HH:MM`). |
+| `host`                | Machine hostname. |
+| `user`                | Current username. |
+| `separator`           | Literal text from `text` (default a space). Trimmed around hidden items. |
+| `flex_separator`      | Expands to fill the remaining width; several split the space evenly. |
+
+The `git_changes` and `git_status` items run `git status` once a second (only
+when one of them is used). All other items are read from the session.
 
 ## Colors
 

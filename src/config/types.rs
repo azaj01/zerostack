@@ -24,6 +24,53 @@ pub struct QuickModelConfig {
     pub extra_body: Option<serde_json::Value>,
 }
 
+/// Status-bar statusline layout. Up to 3 lines, each an ordered list of segments.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatusLineConfig {
+    #[serde(default)]
+    pub lines: Vec<StatusLineLine>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct StatusLineLine {
+    #[serde(default)]
+    pub segments: Vec<StatusLineSegment>,
+}
+
+/// Icon for a statusline item: `true` uses the item's built-in glyph, or a
+/// string sets a custom one (a named icon like `branch`, or a literal glyph).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum IconSpec {
+    Auto(bool),
+    Custom(CompactString),
+}
+
+/// One statusline piece. `item` names the element (see `docs/CONFIG.md`).
+/// `color`/`bg` are named colors or `#rrggbb`. `text` is the literal for the
+/// `separator` item. `left`/`right` are powerline cap glyphs drawn before/after
+/// the item. `icon` shows a glyph before the value.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct StatusLineSegment {
+    pub item: CompactString,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<CompactString>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bg: Option<CompactString>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<CompactString>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub left: Option<CompactString>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub right: Option<CompactString>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<IconSpec>,
+    /// Force a numeric item (`tokens_input`, `tokens_output`, `cost`) to show
+    /// even when its value is zero (normally hidden).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub always: Option<bool>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ApiStyle {
