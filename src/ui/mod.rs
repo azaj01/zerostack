@@ -535,9 +535,15 @@ async fn mid_turn_compact_and_respawn(
     *response_start_line = None;
     *agent_line_started = false;
 
+    // Unlike the between-turn gate, this announces unconditionally: the relief
+    // here is dropping the aborted run's in-flight tool context via the respawn
+    // below, which always happens even when the `handle_compress` step is a
+    // no-op. So the message describes the restart rather than promising a
+    // summarize step (which may not run and would otherwise leave the user
+    // waiting on a "compressed N messages" line that never comes).
     renderer.write_line(
         &format!(
-            "mid-turn auto-compacting (context at {}%)...",
+            "mid-turn context relief, restarting (at {}%)...",
             (pressure * 100.0).round() as u64
         ),
         Color::DarkGrey,
