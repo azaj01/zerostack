@@ -178,7 +178,16 @@ pub async fn handle_compress(
     renderer.write_line("compressing...", C_AGENT)?;
     renderer.write_line("", crossterm::style::Color::White)?;
 
+    // Mirror the auto-compaction trigger's reserve exactly (including memory's
+    // effective_reserve) so the budget gate here can never disagree with the
+    // gate that decided to call us.
     let qm = crate::config::quick_models_map(cfg);
+    #[cfg(feature = "memory")]
+    let reserve = crate::extras::memory::effective_reserve(
+        cfg.resolve_reserve_tokens(&session.model, &qm),
+        context.memory.as_deref(),
+    );
+    #[cfg(not(feature = "memory"))]
     let reserve = cfg.resolve_reserve_tokens(&session.model, &qm);
     let keep_recent = cfg.resolve_keep_recent_tokens();
     let max_tokens = session.context_window.saturating_sub(reserve);
