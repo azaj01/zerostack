@@ -93,8 +93,8 @@ fn compact_enabled_default_true() {
 }
 
 #[test]
-fn show_reasoning_defaults_on() {
-    assert!(Config::default().resolve_show_reasoning());
+fn show_reasoning_defaults_off() {
+    assert!(!Config::default().resolve_show_reasoning());
 }
 
 #[test]

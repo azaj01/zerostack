@@ -385,7 +385,7 @@ impl Config {
     }
 
     pub fn resolve_show_reasoning(&self) -> bool {
-        self.show_reasoning.unwrap_or(true)
+        self.show_reasoning.unwrap_or(false)
     }
 
     pub fn resolve_auto_update_prompts(&self) -> Option<bool> {
