@@ -196,9 +196,10 @@ impl Sandbox {
         })
         .await
         .is_err()
-            && let Some(pid) = guard.pid {
-                kill_process_group(pid);
-            }
+            && let Some(pid) = guard.pid
+        {
+            kill_process_group(pid);
+        }
         let stdout = stdout.lock().unwrap_or_else(|e| e.into_inner()).clone();
         let stderr = stderr.lock().unwrap_or_else(|e| e.into_inner()).clone();
         guard.disarm();

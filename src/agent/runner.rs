@@ -352,16 +352,15 @@ where
                         break;
                     }
                     Ok(MultiTurnStreamItem::CompletionCall(call)) => {
-                        if let Some(usage) = call.usage {
-                            let _ = event_tx
-                                .send(AgentEvent::CompletionCall {
-                                    input_tokens: usage.input_tokens,
-                                    output_tokens: usage.output_tokens,
-                                    cached_input_tokens: usage.cached_input_tokens,
-                                    cache_creation_input_tokens: usage.cache_creation_input_tokens,
-                                })
-                                .await;
-                        }
+                        let usage = call.usage;
+                        let _ = event_tx
+                            .send(AgentEvent::CompletionCall {
+                                input_tokens: usage.input_tokens,
+                                output_tokens: usage.output_tokens,
+                                cached_input_tokens: usage.cached_input_tokens,
+                                cache_creation_input_tokens: usage.cache_creation_input_tokens,
+                            })
+                            .await;
                     }
                     Err(e) => {
                         let _ = event_tx

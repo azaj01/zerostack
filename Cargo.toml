@@ -32,8 +32,8 @@ pdf = ["multimodal", "rig/pdf"]
 advisor = []
 
 [dependencies]
-rig = { version = "0.38", features = ["rmcp"] }
-rmcp = { version = "1.7", optional = true, default-features = false, features = [
+rig = { version = "0.39", features = ["rmcp"] }
+rmcp = { version = "1.8", optional = true, default-features = false, features = [
     "client",
     "transport-child-process",
     "transport-streamable-http-client-reqwest",
