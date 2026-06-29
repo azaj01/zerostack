@@ -852,3 +852,72 @@ The `/advisor` slash command provides runtime control:
 /advisor max-uses <n>       Set max advisor calls per request (0 = unlimited)
 /advisor context-limit <n>  Set max kilobytes of conversation context
 ```
+
+## Logging
+
+zerostack uses the `tracing` framework for structured logging. By default, only
+warnings and errors are printed to stderr at the `warn` level (with the `rig`
+crate silenced). Full debug and trace output is available via CLI flags.
+
+### Verbose mode (`-v` / `--verbose`)
+
+```bash
+zerostack -v
+```
+
+Enables full trace-level logging to a timestamped log file under
+`~/.local/share/zerostack/logs/` (or `$ZS_DATA_DIR/logs/`). The log file is
+named `zerostack-YYYY-MM-DD_HH-MM-SS_<pid>.log`. A new file is created per
+instance — previous runs are never overwritten.
+
+With `-v`, stderr output stays at the default `warn` level so the TUI remains
+clean. The log file captures everything at `trace` level for all zerostack
+modules.
+
+### Custom log file (`--log-file`)
+
+```bash
+zerostack --log-file /tmp/debug.log
+```
+
+Writes full trace-level logs to the specified path instead of the default
+location. Implies `-v` for the file output. Can be combined with `-v` (no
+effect on the path, since `--log-file` takes precedence).
+
+### Custom stderr log level (`--log-level`)
+
+```bash
+zerostack --log-level debug
+```
+
+Sets the minimum level for stderr output. Accepted values: `trace`, `debug`,
+`info`, `warn`, `error`. This overrides the `RUST_LOG` environment variable.
+
+### Environment variable (`RUST_LOG`)
+
+The standard `RUST_LOG` environment variable is still supported for backward
+compatibility:
+
+```bash
+RUST_LOG=zerostack=debug zerostack          # debug level for zerostack
+RUST_LOG=debug,rig=off zerostack             # debug for everything except rig
+RUST_LOG=zerostack::agent::tools=trace zerostack  # trace only tool execution
+```
+
+Priority (highest wins): `--log-level` > `RUST_LOG` env > default `warn,rig=off`.
+
+### Logged subsystems
+
+With `-v`, the following subsystems produce debug/trace output:
+
+- **Agent lifecycle**: prompt sizes, retry events, token usage, tool call dispatch
+- **LLM-exposed tools**: every tool invocation with start/end, arguments, and results (bash, read, write, edit, grep, find_files, list_dir, todo_write)
+- **Config loading**: first startup detection, config file path, quick model and provider counts
+- **Session management**: save, delete, and find operations with message counts
+- **Permission checker**: every permission check result, doom-loop detection, mode changes
+- **MCP**: connection attempts, transport details, per-server tool counts, reconnects
+- **ACP**: server start, session creation, prompt execution with provider/model info
+- **Memory**: store open, write operations (target/bytes), searches, tool entry points
+- **Advisor**: initialization (model, enabled, max uses), tool call prompts
+- **Filesystem**: atomic write paths and byte counts
+

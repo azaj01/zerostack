@@ -125,8 +125,15 @@ impl Tool for BashTool {
     }
 
     async fn call(&self, args: BashArgs) -> Result<String, ToolError> {
+        let commands = split_bash_commands(&args.command);
+        tracing::debug!(
+            "tool bash start: cmd_len={}, timeout={:?}, num_commands={}",
+            args.command.len(),
+            args.timeout,
+            commands.len(),
+        );
         let mut coaching: Option<String> = None;
-        for cmd in split_bash_commands(&args.command) {
+        for cmd in &commands {
             if let Some(msg) = check_perm(&self.permission, &self.ask_tx, "bash", &cmd).await? {
                 coaching = Some(msg);
             }
@@ -142,6 +149,7 @@ impl Tool for BashTool {
                 Ok(output) => output,
                 Err(_) => {
                     self.sandbox.kill_active();
+                    tracing::error!("tool bash timeout: timeout_ms={}", secs);
                     return Err(ToolError::Msg("Command timed out".to_string()));
                 }
             }
@@ -152,6 +160,10 @@ impl Tool for BashTool {
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
         let exit_code = output.status.code().unwrap_or(-1);
+
+        if exit_code != 0 {
+            tracing::warn!("tool bash: non-zero exit code={}", exit_code);
+        }
 
         let mut result = String::new();
         if !stdout.is_empty() {
@@ -188,6 +200,11 @@ impl Tool for BashTool {
             Some(msg) => format!("{}\n\n{}", msg, result),
             None => result,
         };
+        tracing::debug!(
+            "tool bash done: exit_code={}, output_len={}",
+            exit_code,
+            stdout.len() + stderr.len(),
+        );
         Ok(result)
     }
 }

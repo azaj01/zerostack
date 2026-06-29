@@ -75,6 +75,13 @@ impl<Counterpart: Role> ConnectTo<Counterpart> for TcpTransport {
 // --- Server Entry Point ---
 
 pub async fn serve(cli: Cli, cfg: Config, context: ContextFiles) -> anyhow::Result<()> {
+    let transport_mode = if cli.acp_host.is_some() {
+        "tcp"
+    } else {
+        "stdio"
+    };
+    tracing::info!("ACP server starting: transport={}", transport_mode);
+
     // Extract transport config before moving cli into Arc
     let acp_host = cli.acp_host.clone();
     let acp_port = cli.acp_port;
@@ -236,6 +243,13 @@ async fn run_prompt(
 ) -> Result<(), agent_client_protocol::Error> {
     let provider_str = state.cli.resolve_provider(&state.cfg);
     let mut model_str = state.cli.resolve_model(&state.cfg);
+
+    tracing::debug!(
+        "ACP run_prompt: provider={}, model={}, prompt_len={}",
+        provider_str,
+        model_str,
+        prompt_text.len(),
+    );
 
     // Custom provider model override (if no explicit model set)
     if (model_str.as_str() == "deepseek/deepseek-v4-pro" || state.cli.model.is_none())

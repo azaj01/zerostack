@@ -115,6 +115,7 @@ impl Mem {
         let yesterday = (Local::now() - Duration::days(1))
             .format("%Y-%m-%d")
             .to_string();
+        tracing::debug!("memory open: root={}, project={}", root.display(), project);
         Mem {
             root,
             project,
@@ -180,6 +181,12 @@ impl Mem {
         name: Option<&str>,
     ) -> std::io::Result<String> {
         let original_len = content.len();
+        tracing::debug!(
+            "memory write: target={:?}, bytes={}, mode={:?}",
+            target,
+            original_len,
+            mode,
+        );
         let content = Self::truncate_to_bytes(content, MAX_WRITE_BYTES);
         let path = match target {
             WriteTarget::LongTerm => self.memory_md(),
@@ -302,6 +309,7 @@ impl Mem {
     /// any content hit. Older daily logs ARE searched (unlike the auto-injected
     /// context block, which is limited to today + yesterday).
     pub fn search(&self, query: &str) -> SearchResults {
+        tracing::debug!("memory search: '{}'", query);
         // Distinct, non-empty terms, preserving query order.
         let mut terms: Vec<String> = Vec::new();
         for t in query.split_whitespace() {
@@ -649,6 +657,11 @@ Prefer long_term for things that should always be remembered."
     }
 
     async fn call(&self, args: MemoryWriteArgs) -> Result<String, ToolError> {
+        tracing::debug!(
+            "tool memory_write: target={}, bytes={}",
+            args.target,
+            args.content.len(),
+        );
         check_perm(&self.permission, &self.ask_tx, Self::NAME, &args.target).await?;
         let target = match args.target.as_str() {
             "long_term" => WriteTarget::LongTerm,
@@ -708,6 +721,11 @@ daily (name=YYYY-MM-DD, omit for today), note (name=<stem>), or list (enumerate 
     }
 
     async fn call(&self, args: MemoryReadArgs) -> Result<String, ToolError> {
+        tracing::debug!(
+            "tool memory_read: source={}, name={:?}",
+            args.source,
+            args.name,
+        );
         check_perm(&self.permission, &self.ask_tx, Self::NAME, &args.source).await?;
         let m = Mem::open();
         let body = match args.source.as_str() {
@@ -786,6 +804,7 @@ up with memory_read. Use to recall older context that is not auto-injected. If a
     }
 
     async fn call(&self, args: MemorySearchArgs) -> Result<String, ToolError> {
+        tracing::debug!("tool memory_search: '{}'", args.query);
         check_perm(&self.permission, &self.ask_tx, Self::NAME, &args.query).await?;
         let results = Mem::open().search(&args.query);
         if results.hits.is_empty() {

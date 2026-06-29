@@ -9,6 +9,7 @@ mod docs;
 mod event;
 mod extras;
 mod fs;
+mod logging;
 mod models_catalog;
 mod permission;
 mod pricing;
@@ -97,15 +98,9 @@ fn build_permission_checker(
 )]
 #[cfg_attr(not(feature = "multithread"), tokio::main(flavor = "current_thread"))]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_writer(std::io::stderr)
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("warn,rig=off")),
-        )
-        .init();
-
     let cli = cli::Cli::parse();
+    logging::init(&cli);
+
     let (mut cfg, is_first_startup) = config::load();
 
     if cli.print_config {

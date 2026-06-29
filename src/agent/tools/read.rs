@@ -82,18 +82,30 @@ impl Tool for ReadTool {
 
     async fn call(&self, args: ReadArgs) -> Result<String, ToolError> {
         let path = crate::fs::expand_tilde(&args.path);
-        let coaching = check_perm_path(&self.permission, &self.ask_tx, "read", &path).await?;
-
         let offset = args.offset.unwrap_or(1).saturating_sub(1);
         let limit = args.limit.unwrap_or(self.max_lines as usize);
+        tracing::debug!(
+            "tool read start: path={}, offset={}, limit={}",
+            path,
+            offset,
+            limit,
+        );
+        let coaching = check_perm_path(&self.permission, &self.ask_tx, "read", &path).await?;
 
         if let Some(msg) = crate::agent::tools::track_read(&path, offset, limit) {
+            tracing::debug!("tool read blocked (repeated): path={}", path);
             return Err(ToolError::Msg(msg));
         }
 
         let metadata = tokio::fs::metadata(&path).await?;
         let file_size = metadata.len();
         if file_size > self.max_text_file_size {
+            tracing::warn!(
+                "tool read file too large: path={}, size={}, max={}",
+                path,
+                file_size,
+                self.max_text_file_size,
+            );
             return Err(ToolError::Msg(format!(
                 "File too large ({} bytes). Maximum allowed file size is {} bytes.",
                 file_size, self.max_text_file_size
@@ -184,6 +196,12 @@ impl Tool for ReadTool {
             None => info,
         };
 
+        tracing::debug!(
+            "tool read done: path={}, total_lines={}, returned_lines={}",
+            path,
+            total_lines,
+            end - start,
+        );
         Ok(info)
     }
 }

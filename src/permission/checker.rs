@@ -295,11 +295,15 @@ impl PermissionChecker {
                 }
                 match self.doom_loop_action {
                     Action::Deny => {
+                        tracing::info!("perm doom-loop blocked: tool={}", tool);
                         return CheckResult::Denied(
                             "Doom loop: repeated identical tool call".to_string(),
                         );
                     }
-                    Action::Ask => return CheckResult::Ask,
+                    Action::Ask => {
+                        tracing::info!("perm doom-loop ask: tool={}", tool);
+                        return CheckResult::Ask;
+                    }
                     Action::Allow => {}
                 }
             }
@@ -312,6 +316,7 @@ impl PermissionChecker {
     }
 
     pub fn check(&mut self, tool: &str, input: &str) -> CheckResult {
+        tracing::debug!("perm check: tool={}, input_len={}", tool, input.len());
         if tool == "todo_write" {
             return CheckResult::Allowed;
         }
@@ -344,6 +349,7 @@ impl PermissionChecker {
     }
 
     pub fn check_path(&mut self, tool: &str, path: &str) -> CheckResult {
+        tracing::debug!("perm check path: tool={}, path={}", tool, path);
         if tool == "todo_write" {
             return CheckResult::Allowed;
         }
@@ -407,6 +413,7 @@ impl PermissionChecker {
     }
 
     pub fn set_mode(&mut self, mode: SecurityMode) {
+        tracing::debug!("perm mode changed: {:?} -> {:?}", self.mode, mode);
         self.mode = mode;
         self.user_mode = mode;
     }

@@ -52,6 +52,11 @@ impl Tool for FindFilesTool {
     }
 
     async fn call(&self, args: FindFilesArgs) -> Result<String, ToolError> {
+        tracing::debug!(
+            "tool find_files start: pattern={}, path={}",
+            args.pattern,
+            args.path.as_deref().unwrap_or("."),
+        );
         let coaching =
             check_perm(&self.permission, &self.ask_tx, "find_files", &args.pattern).await?;
 
@@ -114,6 +119,12 @@ impl Tool for FindFilesTool {
         } else {
             format!("{} files found:\n{}", total, results.join("\n"))
         };
+
+        tracing::debug!(
+            "tool find_files done: results={}, truncated={}",
+            total,
+            total >= max_results,
+        );
         Ok(match coaching {
             Some(c) => format!("{}\n\n{}", c, result),
             None => result,

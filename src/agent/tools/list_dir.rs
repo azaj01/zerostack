@@ -77,6 +77,7 @@ impl Tool for ListDirTool {
 
     async fn call(&self, args: ListDirArgs) -> Result<String, ToolError> {
         let path = crate::fs::expand_tilde(args.path.as_deref().unwrap_or("."));
+        tracing::debug!("tool list_dir start: path={}", path);
         let coaching = check_perm_path(&self.permission, &self.ask_tx, "list_dir", &path).await?;
 
         let walker = WalkBuilder::new(&path)
@@ -177,6 +178,11 @@ impl Tool for ListDirTool {
                 total_entries - cap,
             ));
         }
+        tracing::debug!(
+            "tool list_dir done: path={}, entries={}",
+            path,
+            total_entries,
+        );
         if let Some(msg) = coaching {
             result = format!("{}\n\n{}", msg, result);
         }

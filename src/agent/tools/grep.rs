@@ -78,6 +78,12 @@ impl Tool for GrepTool {
     }
 
     async fn call(&self, args: GrepArgs) -> Result<String, ToolError> {
+        tracing::debug!(
+            "tool grep start: pattern={}, path={}, include={:?}",
+            args.pattern,
+            args.path.as_deref().unwrap_or("."),
+            args.include,
+        );
         let coaching = check_perm(&self.permission, &self.ask_tx, "grep", &args.pattern).await?;
 
         let re = Regex::new(&args.pattern)
@@ -245,6 +251,14 @@ impl Tool for GrepTool {
         } else {
             result
         };
+
+        tracing::debug!(
+            "tool grep done: files_searched={}, files_with_matches={}, total_matches={}, truncated={}",
+            file_count,
+            files_with_matches,
+            total,
+            truncated,
+        );
 
         Ok(match coaching {
             Some(c) => format!("{}\n\n{}", c, result),

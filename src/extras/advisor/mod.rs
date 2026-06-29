@@ -51,6 +51,13 @@ static CONFIG: Mutex<Option<AdvisorToolConfig>> = Mutex::new(None);
 static SESSION_MESSAGES: Mutex<Vec<SessionMessage>> = Mutex::new(Vec::new());
 
 pub fn init_config(cfg: AdvisorToolConfig) {
+    tracing::debug!(
+        "advisor init: model={}, enabled={}, max_uses={:?}, human_handoff={}",
+        cfg.advisor_model,
+        cfg.enabled,
+        cfg.max_uses,
+        cfg.human_handoff,
+    );
     *CONFIG.lock().unwrap_or_else(|e| e.into_inner()) = Some(cfg);
 }
 
@@ -142,6 +149,8 @@ conversation, so focus your question on the specific decision you need help with
         if args.question.is_empty() {
             return Err(ToolError::Msg("advisor: question must not be empty".into()));
         }
+
+        tracing::debug!("advisor call: question_len={}", args.question.len());
 
         let cfg = with_config(|c| c.clone());
 

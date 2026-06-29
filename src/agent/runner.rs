@@ -314,6 +314,12 @@ where
     crate::extras::subagents::set_subagent_event_tx(event_tx.clone());
 
     let join = tokio::spawn(async move {
+        tracing::debug!(
+            "spawn_agent: prompt_len={}, history_len={}, max_attempts={}",
+            prompt.len(),
+            history.len(),
+            retry_config.max_attempts,
+        );
         let retry_prompt = prompt.clone();
         let retry_history: Vec<Message> = history.clone();
         let mut tool_interactions: Vec<Message> = Vec::new();
@@ -336,6 +342,10 @@ where
                     Some(Err(e))
                         if attempt < retry_config.max_attempts && retry::is_retryable(&e) =>
                     {
+                        tracing::warn!(
+                            "agent retry {attempt}/{max} after error: {e}",
+                            max = retry_config.max_attempts,
+                        );
                         let _ = event_tx
                             .send(AgentEvent::Retrying {
                                 attempt,
@@ -347,6 +357,7 @@ where
                         backoff = (backoff * 2).min(max_backoff);
                     }
                     Some(Err(e)) => {
+                        tracing::error!("agent non-retryable error on attempt {attempt}: {e}");
                         let _ = event_tx
                             .send(AgentEvent::Error(CompactString::new(e.to_string())))
                             .await;
@@ -373,7 +384,13 @@ where
                                     .await;
                             }
                             StreamedAssistantContent::ToolCall { tool_call, .. } => {
-                                last_tool_name = Some(tool_call.function.name.clone());
+                                let tool_name = &tool_call.function.name;
+                                tracing::debug!(
+                                    "agent tool start: name={}, args_len={}",
+                                    tool_name,
+                                    tool_call.function.arguments.to_string().len(),
+                                );
+                                last_tool_name = Some(tool_name.clone());
                                 tool_interactions.push(tool_call.clone().into());
                                 let _ = event_tx
                                     .send(AgentEvent::ToolCall {
@@ -389,6 +406,8 @@ where
                         tool_result,
                         ..
                     })) => {
+                        let tool_name =
+                            CompactString::new(last_tool_name.take().unwrap_or_default());
                         let mut output = String::new();
                         for c in tool_result.content.iter() {
                             if let ToolResultContent::Text(t) = c {
@@ -398,9 +417,14 @@ where
                                 output.push_str(&t.text);
                             }
                         }
+                        tracing::debug!(
+                            "agent tool result: name={}, output_len={}",
+                            tool_name,
+                            output.len(),
+                        );
                         let _ = event_tx
                             .send(AgentEvent::ToolResult {
-                                name: CompactString::new(last_tool_name.take().unwrap_or_default()),
+                                name: tool_name.clone(),
                                 output: CompactString::from(output),
                             })
                             .await;
@@ -409,6 +433,13 @@ where
                     Ok(MultiTurnStreamItem::FinalResponse(res)) => {
                         let response_text = res.response();
                         let usage = res.usage();
+                        tracing::info!(
+                            "agent done: input_tokens={}, output_tokens={}, cached_input_tokens={}, cache_creation_input_tokens={}",
+                            usage.input_tokens,
+                            usage.output_tokens,
+                            usage.cached_input_tokens,
+                            usage.cache_creation_input_tokens,
+                        );
 
                         if !response_text.is_empty() {
                             let _ = event_tx
@@ -426,6 +457,11 @@ where
                     }
                     Ok(MultiTurnStreamItem::CompletionCall(call)) => {
                         let usage = call.usage;
+                        tracing::debug!(
+                            "agent completion: input_tokens={}, output_tokens={}",
+                            usage.input_tokens,
+                            usage.output_tokens,
+                        );
                         let _ = event_tx
                             .send(AgentEvent::CompletionCall {
                                 input_tokens: usage.input_tokens,
@@ -436,6 +472,7 @@ where
                             .await;
                     }
                     Err(e) => {
+                        tracing::error!("agent stream error: {e}");
                         let _ = event_tx
                             .send(AgentEvent::Error(CompactString::new(e.to_string())))
                             .await;
@@ -445,6 +482,10 @@ where
                 }
             }
 
+            tracing::debug!(
+                "agent injecting continue prompt, tool_interactions={}",
+                tool_interactions.len(),
+            );
             stream = continue_prompt_injector(
                 &agent,
                 &retry_prompt,

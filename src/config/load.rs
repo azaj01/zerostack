@@ -299,6 +299,10 @@ pub fn load() -> (Config, bool) {
     let is_first_startup = !path.exists();
     #[allow(unused_mut)]
     let mut cfg: Config = if is_first_startup {
+        tracing::info!(
+            "first startup, writing default config to {}",
+            path.display()
+        );
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).ok();
         }
@@ -340,6 +344,13 @@ pub fn load() -> (Config, bool) {
             }),
         }
     };
+
+    tracing::debug!(
+        "config loaded from {}: {} quick_models, {} custom_providers",
+        path.display(),
+        cfg.quick_models.as_ref().map(|m| m.len()).unwrap_or(0),
+        cfg.custom_providers.as_ref().map(|m| m.len()).unwrap_or(0),
+    );
 
     #[cfg(feature = "mcp")]
     inject_mcp_defaults(&mut cfg);
@@ -427,5 +438,6 @@ pub fn save_config(cfg: &Config) -> io::Result<()> {
             serde_yaml_ng::to_string(&cfg).map_err(io::Error::other)?,
         )?,
     }
+    tracing::debug!("config saved to {}", path.display());
     Ok(())
 }

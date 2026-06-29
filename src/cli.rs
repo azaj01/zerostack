@@ -242,6 +242,22 @@ pub struct Cli {
     )]
     pub status_socket: Option<String>,
 
+    #[arg(short = 'v', long = "verbose", action = clap::ArgAction::SetTrue,
+          help = "Enable full logging (trace level) to a timestamped log file under the data directory")]
+    pub verbose: bool,
+
+    #[arg(
+        long = "log-file",
+        help = "Write logs to this file (overrides verbose default path)"
+    )]
+    pub log_file: Option<std::path::PathBuf>,
+
+    #[arg(
+        long = "log-level",
+        help = "Set stderr log level (trace, debug, info, warn, error)"
+    )]
+    pub log_level: Option<String>,
+
     #[arg(help = "Prompt message(s)")]
     pub message: Vec<String>,
 }

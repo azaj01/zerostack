@@ -44,7 +44,14 @@ pub fn save_session(session: &Session) -> anyhow::Result<()> {
     std::fs::create_dir_all(&dir)?;
     let path = dir.join(format!("{}.json", session.id));
     let json = serde_json::to_string(session)?;
+    let json_len = json.len();
     std::fs::write(path, json)?;
+    tracing::debug!(
+        "session saved: id={}, msgs={}, size={}",
+        session.id,
+        session.messages.len(),
+        json_len,
+    );
     Ok(())
 }
 
@@ -88,7 +95,10 @@ pub fn delete_session(id: &str) -> anyhow::Result<()> {
     let dir = session_dir();
     let path = dir.join(format!("{}.json", id));
     if path.exists() {
-        std::fs::remove_file(path)?;
+        std::fs::remove_file(&path)?;
+        tracing::debug!("session deleted: id={}", id);
+    } else {
+        tracing::debug!("session delete skipped (not found): id={}", id);
     }
     Ok(())
 }
@@ -112,6 +122,11 @@ pub fn find_sessions_by_prefix(prefix: &str) -> anyhow::Result<Vec<Session>> {
         }
     }
     sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+    tracing::debug!(
+        "find_sessions_by_prefix('{}'): {} results",
+        prefix,
+        sessions.len(),
+    );
     Ok(sessions)
 }
 
@@ -142,6 +157,11 @@ pub fn find_recent_sessions(limit: usize) -> anyhow::Result<Vec<Session>> {
             sessions.push(session);
         }
     }
+    tracing::debug!(
+        "find_recent_sessions(limit={}): {} results",
+        limit,
+        sessions.len(),
+    );
     Ok(sessions)
 }
 
