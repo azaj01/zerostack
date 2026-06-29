@@ -87,9 +87,8 @@ fn mid_turn_threshold_out_of_range_treated_as_unset() {
 }
 
 #[test]
-fn compact_enabled_default_true() {
-    // Master switch defaults on; mid-turn compaction layers on top of it.
-    assert!(Config::default().resolve_compact_enabled());
+fn compact_enabled_default_false() {
+    assert!(!Config::default().resolve_compact_enabled());
 }
 
 #[test]

@@ -322,7 +322,7 @@ impl Config {
     }
 
     pub fn resolve_compact_enabled(&self) -> bool {
-        self.compact_enabled.unwrap_or(true)
+        self.compact_enabled.unwrap_or(false)
     }
 
     /// Mid-turn compaction pressure threshold as a fraction of the context
