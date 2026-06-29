@@ -26,11 +26,10 @@ pub fn resolve_log_path(cli: &Cli) -> Option<PathBuf> {
 }
 
 pub fn build_stderr_filter(cli: &Cli) -> EnvFilter {
-    if let Some(ref lvl) = cli.log_level {
-        if let Ok(f) = EnvFilter::try_new(format!("{lvl},rig=off")) {
+    if let Some(ref lvl) = cli.log_level
+        && let Ok(f) = EnvFilter::try_new(format!("{lvl},rig=off")) {
             return f;
         }
-    }
     if let Ok(f) = EnvFilter::try_from_default_env() {
         return f;
     }

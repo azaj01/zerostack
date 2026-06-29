@@ -134,7 +134,7 @@ impl Tool for BashTool {
         );
         let mut coaching: Option<String> = None;
         for cmd in &commands {
-            if let Some(msg) = check_perm(&self.permission, &self.ask_tx, "bash", &cmd).await? {
+            if let Some(msg) = check_perm(&self.permission, &self.ask_tx, "bash", cmd).await? {
                 coaching = Some(msg);
             }
         }
