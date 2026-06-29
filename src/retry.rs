@@ -173,13 +173,13 @@ mod tests {
 
     #[test]
     fn test_is_retryable_http_429() {
-        let err = io::Error::new(io::ErrorKind::Other, "HTTP 429 Too Many Requests");
+        let err = io::Error::other("HTTP 429 Too Many Requests");
         assert!(is_retryable(&err));
     }
 
     #[test]
     fn test_is_retryable_http_500() {
-        let err = io::Error::new(io::ErrorKind::Other, "HTTP 500 Internal Server Error");
+        let err = io::Error::other("HTTP 500 Internal Server Error");
         assert!(is_retryable(&err));
     }
 
@@ -201,7 +201,7 @@ mod tests {
     #[test]
     fn test_is_retryable_walks_source_chain() {
         let inner = io::Error::new(io::ErrorKind::TimedOut, "timed out");
-        let outer = io::Error::new(io::ErrorKind::Other, inner);
+        let outer = io::Error::other(inner);
         assert!(is_retryable(&outer));
     }
 

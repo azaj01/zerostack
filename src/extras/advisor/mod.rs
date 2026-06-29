@@ -320,7 +320,7 @@ where
         .build();
 
     use futures::StreamExt;
-    let history: Vec<rig::completion::Message> = vec![];
+    let _history: Vec<rig::completion::Message> = vec![];
     let agent_ref = &agent;
     let mut stream = retry::retry_stream_chat(&RetryConfig::default(), move || {
         let p = prompt.clone();
