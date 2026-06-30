@@ -1,5 +1,5 @@
 {% set name = "zerostack" %}
-{% set version = "1.5.1" %}
+{% set version = "1.6.0" %}
 
 package:
   name: {{ name }}
@@ -7,7 +7,7 @@ package:
 
 source:
   url: https://github.com/gi-dellav/zerostack/archive/refs/tags/v{{ version }}.tar.gz
-  sha256: 1e3f14bc2d32122a93b6e608a6c620b7585d9f8c8bb811927809398a141bdf0f
+  sha256: 564bd0e54f4f11d7b9e119d765871b8e37ce2620a201dcd2373b950eb154d450
 
 build:
   number: 0
