@@ -141,7 +141,7 @@ fn rich_default_config() -> Config {
     Config {
         quick_models: Some(default_quick_models()),
         provider: Some(CompactString::new("openrouter")),
-        model: Some(CompactString::new("deepseek/deepseek-v4-pro")),
+        model: Some(CompactString::new("deepseek-v4-pro")),
         max_tokens: Some(16384),
         compact_enabled: Some(false),
         max_text_file_size: Some(1_048_576),

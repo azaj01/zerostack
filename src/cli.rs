@@ -272,7 +272,16 @@ impl Cli {
     }
 
     pub fn resolve_model(&self, cfg: &config::Config) -> CompactString {
-        if let Some(m) = self.model.as_deref().or(cfg.model.as_deref()) {
+        // CLI --model takes a raw model string.
+        if let Some(m) = self.model.as_deref() {
+            return CompactString::new(m);
+        }
+        // Config model field references a quick model name; resolve it.
+        if let Some(m) = cfg.model.as_deref() {
+            let qm = config::quick_models_map(cfg);
+            if let Some(q) = qm.get(m) {
+                return q.model.clone();
+            }
             return CompactString::new(m);
         }
         // No explicit model. If a provider was chosen explicitly, default to a

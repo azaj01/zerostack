@@ -92,7 +92,7 @@ The same config in TOML:
 
 ```toml
 provider = "openrouter"
-model = "deepseek/deepseek-v4-flash"
+model = "deepseek-v4-flash"
 max_tokens = 16384
 temperature = 0.7
 context_window = 128000
@@ -833,7 +833,7 @@ model only when needed.
 ```toml
 [advisor]
 enabled = true
-model = "deepseek/deepseek-v4-pro"
+model = "deepseek-v4-pro"
 # provider = "openrouter"         # defaults to main provider
 # max_uses = 3                    # max advisor calls per request (nil = unlimited)
 # human_handoff = false           # route advisor calls to the user instead
@@ -845,7 +845,7 @@ model = "deepseek/deepseek-v4-pro"
 ```yaml
 advisor:
   enabled: true
-  model: deepseek/deepseek-v4-pro
+  model: deepseek-v4-pro
   max_uses: 3
   human_handoff: false
   advisor_kilobytes_limit: 256
