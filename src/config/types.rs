@@ -131,11 +131,21 @@ impl std::str::FromStr for EditSystem {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SchemeType {
+    #[default]
+    Full,
+    Ansi,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ColorsConfig {
     pub chat_background: Option<CompactString>,
     pub input_background: Option<CompactString>,
     pub status_background: Option<CompactString>,
+    #[serde(default)]
+    pub scheme_type: SchemeType,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

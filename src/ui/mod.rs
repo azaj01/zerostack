@@ -44,7 +44,7 @@ use crate::ui::renderer::{Renderer, copy_to_clipboard};
 use crate::ui::slash::{apply_prompt_model, handle_compress, handle_slash};
 use crate::ui::terminal::TerminalGuard;
 
-use self::utils::parse_color;
+use self::utils::{parse_color, to_ansi_256};
 
 pub(crate) fn apply_current_prompt_mode(
     context: &mut ContextFiles,
@@ -773,7 +773,15 @@ pub async fn run_interactive(
         let chat_bg = colors.chat_background.as_deref().and_then(parse_color);
         let input_bg = colors.input_background.as_deref().and_then(parse_color);
         let status_bg = colors.status_background.as_deref().and_then(parse_color);
-        renderer.set_background_colors(chat_bg, input_bg, status_bg);
+        if matches!(colors.scheme_type, config::SchemeType::Ansi) {
+            renderer.set_background_colors(
+                chat_bg.map(to_ansi_256),
+                input_bg.map(to_ansi_256),
+                status_bg.map(to_ansi_256),
+            );
+        } else {
+            renderer.set_background_colors(chat_bg, input_bg, status_bg);
+        }
     }
     let mut input = InputEditor::new();
     input.set_monochrome(cli.no_color);
