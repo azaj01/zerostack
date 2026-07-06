@@ -453,7 +453,7 @@ fn build_acp_permission(state: &AcpState) -> (Option<PermCheck>, Option<AskSende
     let checker = PermissionChecker::new(&perm_config, mode, None, permission_modes);
     let perm: PermCheck = Arc::new(StdMutex::new(checker));
 
-    let (ask_tx, mut ask_rx) = tokio::sync::mpsc::channel(64);
+    let (ask_tx, mut ask_rx) = tokio::sync::mpsc::channel::<crate::permission::ask::AskRequest>(64);
     // ACP is headless — there is no interactive user to prompt. Auto-approve
     // Ask requests so tools don't fail with "Permission system unavailable".
     // Log a warning so the auto-approval is visible in logs.
