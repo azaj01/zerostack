@@ -122,6 +122,25 @@ fn apply_startup_prompt_model(
     ));
 }
 
+/// Connect configured MCP servers for a headless (`-p`/`--loop`) run. Unlike
+/// the TUI (`ui::ensure_mcp_manager`), headless has no alt-screen to protect,
+/// so connection failures are printed to stderr instead of staying silent
+/// until surfaced by the renderer.
+#[cfg(feature = "mcp")]
+async fn connect_headless_mcp(
+    cfg: &config::Config,
+) -> Option<crate::extras::mcp::McpClientManager> {
+    let servers = cfg.mcp_servers.as_ref()?;
+    if servers.is_empty() {
+        return None;
+    }
+    let manager = crate::extras::mcp::McpClientManager::connect_all(servers).await;
+    for notice in &manager.notices {
+        eprintln!("{}", notice);
+    }
+    Some(manager)
+}
+
 #[cfg_attr(
     feature = "multithread",
     tokio::main(flavor = "multi_thread", worker_threads = 4)
@@ -723,6 +742,8 @@ async fn main() -> anyhow::Result<()> {
         } else {
             let temperature = config::resolve_temperature(&cli, &cfg, &model);
             let extra_body = config::resolve_extra_body(&cfg, &model);
+            #[cfg(feature = "mcp")]
+            let mcp_manager = connect_headless_mcp(&cfg).await;
             let agent = provider::build_agent(
                 completion_model,
                 &cli,
@@ -735,7 +756,7 @@ async fn main() -> anyhow::Result<()> {
                 temperature,
                 extra_body,
                 #[cfg(feature = "mcp")]
-                None,
+                mcp_manager.as_ref(),
             )
             .await;
             #[cfg(feature = "advisor")]
@@ -780,6 +801,8 @@ async fn main() -> anyhow::Result<()> {
             let model_completion = client.completion_model(model.to_string());
             let temperature = config::resolve_temperature(&cli, &cfg, &model);
             let extra_body = config::resolve_extra_body(&cfg, &model);
+            #[cfg(feature = "mcp")]
+            let mcp_manager = connect_headless_mcp(&cfg).await;
             let agent = provider::build_agent(
                 model_completion,
                 &cli,
@@ -792,7 +815,7 @@ async fn main() -> anyhow::Result<()> {
                 temperature,
                 extra_body,
                 #[cfg(feature = "mcp")]
-                None,
+                mcp_manager.as_ref(),
             )
             .await;
             return run_headless_loop(agent, &cli, &cfg, &context, status_signals).await;
