@@ -210,9 +210,9 @@ to three locations, loaded and merged in this order:
 
 | Location | Trust |
 | -------- | ----- |
-| `~/.config/zerostack/settings.json` (global; on macOS `~/Library/Application Support/zerostack/settings.json`) | Trusted by default |
+| `~/.config/zerostack/settings.json` (global; on macOS `~/Library/Application Support/zerostack/settings.json`; on Windows `%APPDATA%\zerostack\settings.json`, experimental) | Trusted by default |
 | `.zerostack/settings.json` (project, relative to CWD) | **Not** trusted by default — see Trust model below |
-| `/etc/zerostack/managed-settings.json` (Linux) / `/Library/Application Support/zerostack/managed-settings.json` (macOS) — admin-controlled | Always trusted; unaffected by `disableAllHooks` |
+| `/etc/zerostack/managed-settings.json` (Linux) / `/Library/Application Support/zerostack/managed-settings.json` (macOS) / `C:\ProgramData\zerostack\managed-settings.json` (Windows, experimental) — admin-controlled | Always trusted; unaffected by `disableAllHooks` |
 
 Each file may have a top-level `hooks` object (keyed by event name) and a
 top-level `disableAllHooks: true` boolean. `disableAllHooks` (from the global
@@ -246,7 +246,7 @@ works with no changes to the hook scripts.
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `type` | string | Only `"command"` is supported. |
-| `command` | string | Shell command, run via `sh -c`. Receives the stdin envelope as JSON; `$ZEROSTACK_PROJECT_DIR` is set in its environment. |
+| `command` | string | Shell command, run via `sh -c` on Unix (`powershell -Command` on Windows, experimental). Receives the stdin envelope as JSON; `$ZEROSTACK_PROJECT_DIR` is set in its environment. |
 | `args` | array of strings | When present, bypasses the shell entirely: `command` is executed directly as the program with `args` as its argv (no shell metacharacter expansion). |
 | `timeout` | integer (seconds) | Per-hook timeout; the whole process group is killed on expiry. Default: 60. |
 | `async` | boolean | When `true`, the hook runs in the background and its decision is ignored. Default: `false`. |

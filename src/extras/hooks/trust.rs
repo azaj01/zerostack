@@ -63,7 +63,12 @@ fn managed_settings_path() -> PathBuf {
     PathBuf::from("/Library/Application Support/zerostack/managed-settings.json")
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+#[cfg(target_os = "windows")]
+fn managed_settings_path() -> PathBuf {
+    PathBuf::from(r"C:\ProgramData\zerostack\managed-settings.json")
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 fn managed_settings_path() -> PathBuf {
     PathBuf::from("/etc/zerostack/managed-settings.json")
 }

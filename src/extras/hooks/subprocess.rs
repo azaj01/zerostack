@@ -18,17 +18,25 @@ pub(crate) struct HookOutput {
 /// Pure: builds the invocation for a hook command. When `args` is present,
 /// uses the exec form: `command` is the program itself, run directly with
 /// `args` as its argv, bypassing the shell entirely (no metacharacter
-/// expansion). When absent, falls back to the shell form (`sh -c command`).
+/// expansion). When absent, falls back to the shell form (`sh -c command` on
+/// Unix, `powershell -Command command` on Windows).
 pub(crate) fn build_shell_invocation(
     command: &str,
     args: Option<&[String]>,
 ) -> (String, Vec<String>) {
     match args {
         Some(args) => (command.to_string(), args.to_vec()),
-        None => (
-            "sh".to_string(),
-            vec!["-c".to_string(), command.to_string()],
-        ),
+        None => {
+            let (shell, flag) = if cfg!(windows) {
+                ("powershell", "-Command")
+            } else {
+                ("sh", "-c")
+            };
+            (
+                shell.to_string(),
+                vec![flag.to_string(), command.to_string()],
+            )
+        }
     }
 }
 

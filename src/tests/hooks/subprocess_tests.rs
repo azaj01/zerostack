@@ -4,8 +4,13 @@ use tokio::time::Duration;
 #[test]
 fn build_shell_invocation_wraps_command_in_sh_c() {
     let (program, args) = build_shell_invocation("echo hi", None);
-    assert_eq!(program, "sh");
-    assert_eq!(args, vec!["-c".to_string(), "echo hi".to_string()]);
+    let (expected_program, expected_flag) = if cfg!(windows) {
+        ("powershell", "-Command")
+    } else {
+        ("sh", "-c")
+    };
+    assert_eq!(program, expected_program);
+    assert_eq!(args, vec![expected_flag.to_string(), "echo hi".to_string()]);
 }
 
 #[test]
@@ -19,8 +24,13 @@ fn build_shell_invocation_uses_exec_form_when_args_present() {
 #[test]
 fn build_shell_invocation_uses_shell_form_when_args_absent() {
     let (program, args) = build_shell_invocation("echo hi", None);
-    assert_eq!(program, "sh");
-    assert_eq!(args, vec!["-c".to_string(), "echo hi".to_string()]);
+    let (expected_program, expected_flag) = if cfg!(windows) {
+        ("powershell", "-Command")
+    } else {
+        ("sh", "-c")
+    };
+    assert_eq!(program, expected_program);
+    assert_eq!(args, vec![expected_flag.to_string(), "echo hi".to_string()]);
 }
 
 #[tokio::test]
