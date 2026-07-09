@@ -609,12 +609,18 @@ async fn handle_agent_done(
                 )
                 .await
             });
-            let runner =
-                agent
-                    .as_ref()
-                    .unwrap()
-                    .clone()
-                    .spawn_runner(prompt, Vec::new(), cfg.retry.clone());
+            let runner = agent
+                .as_ref()
+                .unwrap()
+                .clone()
+                .spawn_runner(
+                    prompt,
+                    Vec::new(),
+                    cfg.retry.clone(),
+                    #[cfg(feature = "hooks")]
+                    Some((ls.iteration, ls.active)),
+                )
+                .await;
             *agent_rx = Some(runner.event_rx);
             *is_running = true;
             if let Some(ss) = status_signals.as_ref() {

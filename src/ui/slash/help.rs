@@ -154,6 +154,11 @@ pub fn handle(_parts: &[&str], ctx: &mut SlashCtx<'_>) {
             "  /wt-exit               exit worktree and return to main repo",
         );
     }
+    #[cfg(feature = "hooks")]
+    write_result(
+        ctx.renderer,
+        "  /hooks                 show configured hook events and handlers",
+    );
     write_result(
         ctx.renderer,
         "  /history               show global chat history",
