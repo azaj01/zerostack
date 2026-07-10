@@ -2,6 +2,8 @@ pub(crate) mod add;
 mod content;
 mod features;
 mod help;
+#[cfg(feature = "hooks")]
+mod hooks;
 pub(crate) mod init;
 mod memory;
 mod providers;
@@ -537,6 +539,8 @@ pub async fn handle_slash(
         "/compress" | "/compact" | "/loop" | "/worktree" | "/wt-merge" | "/wt-exit" => {
             features::handle(&parts, &mut ctx).await
         }
+        #[cfg(feature = "hooks")]
+        "/hooks" => hooks::handle(&parts, &mut ctx).await,
         _ => {
             write_error(
                 ctx.renderer,
