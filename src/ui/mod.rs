@@ -326,7 +326,14 @@ async fn spawn_merge_agent(
         .as_ref()
         .unwrap()
         .clone()
-        .spawn_runner(prompt, history, cfg.retry.clone());
+        .spawn_runner(
+            prompt,
+            history,
+            cfg.retry.clone(),
+            #[cfg(feature = "hooks")]
+            None,
+        )
+        .await;
     *agent_rx = Some(runner.event_rx);
     *main_abort = Some(runner.abort_handle);
     *is_running = true;
@@ -443,12 +450,18 @@ async fn start_main_run(
             h
         }
     };
-    let runner =
-        agent
-            .as_ref()
-            .unwrap()
-            .clone()
-            .spawn_runner(text.to_string(), history, cfg.retry.clone());
+    let runner = agent
+        .as_ref()
+        .unwrap()
+        .clone()
+        .spawn_runner(
+            text.to_string(),
+            history,
+            cfg.retry.clone(),
+            #[cfg(feature = "hooks")]
+            None,
+        )
+        .await;
     *agent_rx = Some(runner.event_rx);
     *main_abort = Some(runner.abort_handle);
     *is_running = true;
@@ -611,11 +624,18 @@ async fn mid_turn_compact_and_respawn(
     )
     .await;
     let history = crate::agent::runner::convert_history(session);
-    let runner = agent.as_ref().unwrap().clone().spawn_runner(
-        MID_TURN_CONTINUE_PROMPT.to_string(),
-        history,
-        cfg.retry.clone(),
-    );
+    let runner = agent
+        .as_ref()
+        .unwrap()
+        .clone()
+        .spawn_runner(
+            MID_TURN_CONTINUE_PROMPT.to_string(),
+            history,
+            cfg.retry.clone(),
+            #[cfg(feature = "hooks")]
+            None,
+        )
+        .await;
     *agent_rx = Some(runner.event_rx);
     *main_abort = Some(runner.abort_handle);
     *is_running = true;
@@ -1007,11 +1027,18 @@ pub async fn run_interactive(
         )
         .await;
         let history = crate::agent::runner::convert_history(session);
-        let runner = agent.as_ref().unwrap().clone().spawn_runner(
-            trigger_msg.to_string(),
-            history,
-            cfg.retry.clone(),
-        );
+        let runner = agent
+            .as_ref()
+            .unwrap()
+            .clone()
+            .spawn_runner(
+                trigger_msg.to_string(),
+                history,
+                cfg.retry.clone(),
+                #[cfg(feature = "hooks")]
+                None,
+            )
+            .await;
         agent_rx = Some(runner.event_rx);
         main_abort = Some(runner.abort_handle);
         is_running = true;
@@ -1124,10 +1151,14 @@ pub async fn run_interactive(
                             refresh_display(&mut renderer, &mut input, session, is_running, loop_label.as_deref(), context.current_prompt_name.as_deref(), perm_mode().as_deref(), chain_label_msg.as_deref(), btw_total_cost, btw_total_in, btw_total_out)?;
                         } else if row < renderer.visible_lines() as u16
                             && let Some(idx) = renderer.buffer_line_at_row(row) {
-                                renderer.selection_active = true;
-                                renderer.selection_start = Some(idx);
-                                renderer.selection_end = Some(idx);
-                                refresh_display(&mut renderer, &mut input, session, is_running, loop_label.as_deref(), context.current_prompt_name.as_deref(), perm_mode().as_deref(), chain_label_msg.as_deref(), btw_total_cost, btw_total_in, btw_total_out)?;
+                                if let Some(url) = renderer.link_url_at(idx, col) {
+                                    renderer::open_url(url);
+                                } else {
+                                    renderer.selection_active = true;
+                                    renderer.selection_start = Some(idx);
+                                    renderer.selection_end = Some(idx);
+                                    refresh_display(&mut renderer, &mut input, session, is_running, loop_label.as_deref(), context.current_prompt_name.as_deref(), perm_mode().as_deref(), chain_label_msg.as_deref(), btw_total_cost, btw_total_in, btw_total_out)?;
+                                }
                             }
                         continue;
                     }
@@ -1980,7 +2011,18 @@ pub async fn run_interactive(
                                             #[cfg(feature = "mcp")] mcp_ref,
                                         ).await;
                                         let history = crate::agent::runner::convert_history(session);
-                                        let runner = agent.as_ref().unwrap().clone().spawn_runner(prompt, history, cfg.retry.clone());
+                                        let runner = agent
+                                            .as_ref()
+                                            .unwrap()
+                                            .clone()
+                                            .spawn_runner(
+                                                prompt,
+                                                history,
+                                                cfg.retry.clone(),
+                                                #[cfg(feature = "hooks")]
+                                                None,
+                                            )
+                                            .await;
                                         agent_rx = Some(runner.event_rx);
                                         main_abort = Some(runner.abort_handle);
                                         is_running = true;
@@ -2000,7 +2042,18 @@ pub async fn run_interactive(
                                             #[cfg(feature = "mcp")] mcp_ref,
                                         ).await;
                                         let history = crate::agent::runner::convert_history(session);
-                                        let runner = agent.as_ref().unwrap().clone().spawn_runner(msg, history, cfg.retry.clone());
+                                        let runner = agent
+                                            .as_ref()
+                                            .unwrap()
+                                            .clone()
+                                            .spawn_runner(
+                                                msg,
+                                                history,
+                                                cfg.retry.clone(),
+                                                #[cfg(feature = "hooks")]
+                                                None,
+                                            )
+                                            .await;
                                         agent_rx = Some(runner.event_rx);
                                         main_abort = Some(runner.abort_handle);
                                         is_running = true;
@@ -2059,7 +2112,21 @@ pub async fn run_interactive(
                                                 &permission, &ask_tx, &sandbox, reasoning_enabled,
                                                 #[cfg(feature = "mcp")] mcp_ref,
                                             ).await;
-                                            let runner = agent.as_ref().unwrap().clone().spawn_runner(prompt, Vec::new(), cfg.retry.clone());
+                                            let runner = agent
+                                                .as_ref()
+                                                .unwrap()
+                                                .clone()
+                                                .spawn_runner(
+                                                    prompt,
+                                                    Vec::new(),
+                                                    cfg.retry.clone(),
+                                                    #[cfg(feature = "hooks")]
+                                                    Some(crate::extras::hooks::LoopInfo {
+                                                        iteration: ls.iteration,
+                                                        active: ls.active,
+                                                    }),
+                                                )
+                                                .await;
                                             agent_rx = Some(runner.event_rx);
                                             main_abort = Some(runner.abort_handle);
                                             is_running = true;

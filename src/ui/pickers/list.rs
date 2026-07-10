@@ -68,6 +68,9 @@ fn available_commands() -> Vec<&'static str> {
         cmds.push("/wt-merge");
     }
 
+    #[cfg(feature = "hooks")]
+    cmds.push("/hooks");
+
     #[cfg(feature = "loop")]
     cmds.push("/loop");
 
