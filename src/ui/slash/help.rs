@@ -94,6 +94,14 @@ pub fn handle(_parts: &[&str], ctx: &mut SlashCtx<'_>) {
         ctx.renderer,
         "  /mode <mode>           set mode (standard|restrictive|readonly|guarded|yolo)",
     );
+    write_result(
+        ctx.renderer,
+        "  /toggle                show toggleable features",
+    );
+    write_result(
+        ctx.renderer,
+        "  /toggle todo [on|off]  toggle todo-list tools",
+    );
     #[cfg(feature = "mcp")]
     {
         write_result(
@@ -126,6 +134,23 @@ pub fn handle(_parts: &[&str], ctx: &mut SlashCtx<'_>) {
     write_result(ctx.renderer, "  /retry                 retry last prompt");
     write_result(
         ctx.renderer,
+        "  /queue                 list input queued while agent is busy",
+    );
+    write_result(ctx.renderer, "  /queue clear           clear the queue");
+    write_result(
+        ctx.renderer,
+        "  /queue pop             remove the last queued input",
+    );
+    write_result(
+        ctx.renderer,
+        "  /btw <message>         ask a side question in parallel (no session trace)",
+    );
+    write_result(
+        ctx.renderer,
+        "  /review [msg]          review code (auto message if omitted)",
+    );
+    write_result(
+        ctx.renderer,
         "  /compress [/compact]   compress conversation history",
     );
     write_result(
@@ -136,6 +161,27 @@ pub fn handle(_parts: &[&str], ctx: &mut SlashCtx<'_>) {
         ctx.renderer,
         "  /editsys [mode]        edit system (similarity | hashedit)",
     );
+    #[cfg(feature = "advisor")]
+    {
+        write_result(ctx.renderer, "  /advisor               show advisor status");
+        write_result(
+            ctx.renderer,
+            "  /advisor on|off        enable or disable advisor",
+        );
+        write_result(
+            ctx.renderer,
+            "  /advisor handoff [on|off]  toggle human handoff mode",
+        );
+        write_result(ctx.renderer, "  /advisor model <name>  set advisor model");
+        write_result(
+            ctx.renderer,
+            "  /advisor max-uses <n>  set max advisor calls per request",
+        );
+        write_result(
+            ctx.renderer,
+            "  /advisor context-limit <n>  set max KB sent to advisor",
+        );
+    }
     #[cfg(feature = "loop")]
     {
         write_result(
@@ -157,6 +203,10 @@ pub fn handle(_parts: &[&str], ctx: &mut SlashCtx<'_>) {
     );
     write_result(ctx.renderer, "  /prompt <name>         activate a prompt");
     write_result(ctx.renderer, "  /prompt default        clear active prompt");
+    write_result(
+        ctx.renderer,
+        "  /rename <name>         rename current session",
+    );
     write_result(
         ctx.renderer,
         "  /theme                 list available themes",
