@@ -9,29 +9,31 @@ pub fn handle_welcome(renderer: &mut crate::ui::renderer::Renderer) {
 }
 
 pub fn handle_tutor(renderer: &mut crate::ui::renderer::Renderer) {
-    let doc_path = crate::docs::global_docs_dir().join("GET_STARTED.md");
-    if !doc_path.exists() {
-        let _ = crate::docs::ensure_global();
+    match run_tutor() {
+        Ok(()) => {}
+        Err(e) => {
+            let _ = renderer.write_line(&format!("{}", e), crate::ui::slash::C_ERROR);
+        }
     }
-    if doc_path.exists() {
-        let _ = crossterm::terminal::disable_raw_mode();
-        let mut stdout = std::io::stdout();
-        let _ = stdout.execute(crossterm::event::DisableMouseCapture);
-        let _ = stdout.execute(crossterm::terminal::LeaveAlternateScreen);
-        let _ = stdout.flush();
-        let _ = std::process::Command::new("less").arg(&doc_path).status();
-        let _ = stdout.execute(crossterm::terminal::EnterAlternateScreen);
-        let _ = stdout.execute(crossterm::terminal::Clear(
-            crossterm::terminal::ClearType::All,
-        ));
-        let _ = stdout.execute(crossterm::event::EnableMouseCapture);
-        let _ = crossterm::terminal::enable_raw_mode();
-    } else {
-        let _ = renderer.write_line(
-            "GET_STARTED.md not found. Try reinstalling zerostack.",
-            crate::ui::slash::C_ERROR,
-        );
-    }
+}
+
+fn run_tutor() -> anyhow::Result<()> {
+    let _ = crossterm::terminal::disable_raw_mode();
+    let mut stdout = std::io::stdout();
+    let _ = stdout.execute(crossterm::event::DisableMouseCapture);
+    let _ = stdout.execute(crossterm::terminal::LeaveAlternateScreen);
+    let _ = stdout.flush();
+
+    let result = crate::docs::show_get_started();
+
+    let _ = stdout.execute(crossterm::terminal::EnterAlternateScreen);
+    let _ = stdout.execute(crossterm::terminal::Clear(
+        crossterm::terminal::ClearType::All,
+    ));
+    let _ = stdout.execute(crossterm::event::EnableMouseCapture);
+    let _ = crossterm::terminal::enable_raw_mode();
+
+    result
 }
 
 pub fn handle(_parts: &[&str], ctx: &mut SlashCtx<'_>) {

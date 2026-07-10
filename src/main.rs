@@ -25,6 +25,7 @@ mod tests;
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
+use anyhow::Context;
 use clap::Parser;
 use compact_str::CompactString;
 use session::MessageRole;
@@ -147,6 +148,12 @@ async fn connect_headless_mcp(
 )]
 #[cfg_attr(not(feature = "multithread"), tokio::main(flavor = "current_thread"))]
 async fn main() -> anyhow::Result<()> {
+    run().await.context(
+        "This error might derive from an incomplete configuration: run `zerostack --tutor` to see a complete getting started guide",
+    )
+}
+
+async fn run() -> anyhow::Result<()> {
     let cli = cli::Cli::parse();
     logging::init(&cli);
 
@@ -155,6 +162,10 @@ async fn main() -> anyhow::Result<()> {
     if cli.print_config {
         print_config(&cli, &cfg);
         return Ok(());
+    }
+
+    if cli.tutor {
+        return docs::show_get_started();
     }
 
     if cli.resume && cli.session.is_none() {

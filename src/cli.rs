@@ -22,6 +22,9 @@ pub struct Cli {
     #[arg(long = "print-config", help = "Print resolved configuration and exit")]
     pub print_config: bool,
 
+    #[arg(long = "tutor", help = "Show getting started guide")]
+    pub tutor: bool,
+
     #[arg(short = 'c', long = "continue", help = "Continue most recent session")]
     pub continue_session: bool,
 
