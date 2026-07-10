@@ -530,6 +530,10 @@ pub async fn handle_slash(
             help::handle_welcome(ctx.renderer);
             Ok(())
         }
+        "/tutor" => {
+            help::handle_tutor(ctx.renderer);
+            Ok(())
+        }
         "/add" | "/drop" | "/drop-all" => add::handle(&parts, &mut ctx).await,
         "/init" => init::handle(&parts, &mut ctx).await,
         "/review" => review::handle(&parts, &mut ctx).await,

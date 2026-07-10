@@ -1,7 +1,37 @@
+use std::io::Write;
+
+use crossterm::ExecutableCommand;
+
 use crate::ui::slash::{SlashCtx, write_ok, write_result};
 
 pub fn handle_welcome(renderer: &mut crate::ui::renderer::Renderer) {
     let _ = crate::ui::events::show_welcome(renderer);
+}
+
+pub fn handle_tutor(renderer: &mut crate::ui::renderer::Renderer) {
+    let doc_path = crate::docs::global_docs_dir().join("GET_STARTED.md");
+    if !doc_path.exists() {
+        let _ = crate::docs::ensure_global();
+    }
+    if doc_path.exists() {
+        let _ = crossterm::terminal::disable_raw_mode();
+        let mut stdout = std::io::stdout();
+        let _ = stdout.execute(crossterm::event::DisableMouseCapture);
+        let _ = stdout.execute(crossterm::terminal::LeaveAlternateScreen);
+        let _ = stdout.flush();
+        let _ = std::process::Command::new("less").arg(&doc_path).status();
+        let _ = stdout.execute(crossterm::terminal::EnterAlternateScreen);
+        let _ = stdout.execute(crossterm::terminal::Clear(
+            crossterm::terminal::ClearType::All,
+        ));
+        let _ = stdout.execute(crossterm::event::EnableMouseCapture);
+        let _ = crossterm::terminal::enable_raw_mode();
+    } else {
+        let _ = renderer.write_line(
+            "GET_STARTED.md not found. Try reinstalling zerostack.",
+            crate::ui::slash::C_ERROR,
+        );
+    }
 }
 
 pub fn handle(_parts: &[&str], ctx: &mut SlashCtx<'_>) {
@@ -162,6 +192,10 @@ pub fn handle(_parts: &[&str], ctx: &mut SlashCtx<'_>) {
     write_result(
         ctx.renderer,
         "  /welcome               show the quickstart guide",
+    );
+    write_result(
+        ctx.renderer,
+        "  /tutor                 open GET_STARTED.md in less",
     );
     write_result(ctx.renderer, "  /tutorial              alias for /welcome");
     write_result(ctx.renderer, "  /help                  show this message");
