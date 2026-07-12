@@ -307,8 +307,9 @@ impl Mem {
     /// bytes and nothing more. Unlike the source-code `EditTool`, there is no
     /// fuzzy fallback.
     ///
-    /// The `old_str: None` branch (whole-note deletion) is not yet supported and
-    /// is implemented in a later change.
+    /// The `old_str: None` branch deletes an entire note file (`target=note`,
+    /// `name=<stem>`) from disk. Omitting `old_str` for any non-note target
+    /// (`long_term`/`scratchpad`/`daily`) is a hard error that touches nothing.
     pub fn edit(
         &self,
         target: WriteTarget,
@@ -356,10 +357,21 @@ impl Mem {
                 atomic_write(&path, &updated)?;
                 Ok(format!("Edited {}", path.display()))
             }
-            None => Err(std::io::Error::new(
-                std::io::ErrorKind::Unsupported,
-                "memory_edit without old_str (whole-note deletion) is not yet supported",
-            )),
+            None => {
+                if !matches!(target, WriteTarget::Note) {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "memory_edit without old_str deletes a whole note; \
+it is only allowed for target=note, not long_term/scratchpad/daily",
+                    ));
+                }
+                // `path` is already the sanitized note path (Note branch above
+                // rejects invalid names via `note_path`). Removing a missing note
+                // surfaces the io NotFound error, so deleting a stale note the
+                // model no longer sees is a clear failure rather than a silent Ok.
+                fs::remove_file(&path)?;
+                Ok(format!("Deleted {}", path.display()))
+            }
         }
     }
 
@@ -914,18 +926,19 @@ occur EXACTLY once in the target file, matched literally (no fuzzy matching); if
 multiple times the edit fails and nothing is written, so include enough surrounding text to make it \
 unique. The match is replaced with new_str verbatim, with no newline cleanup: set new_str to an \
 empty string to delete the matched text, and include the trailing newline in old_str to delete a \
-whole line. Use memory_write to append or overwrite; use this to surgically fix or remove existing \
-content."
+whole line. Omit old_str entirely to delete a whole note file (requires target=note and name=<stem>); \
+omitting old_str for long_term/scratchpad/daily is rejected and changes nothing. Use memory_write to \
+append or overwrite; use this to surgically fix or remove existing content."
                 .to_string(),
             parameters: serde_json::json!({
                 "type": "object",
                 "properties": {
                     "target":  { "type": "string", "description": "long_term, scratchpad, daily, or note" },
                     "name":    { "type": "string", "description": "note stem, required for note" },
-                    "old_str": { "type": "string", "description": "substring to replace; must occur exactly once" },
+                    "old_str": { "type": "string", "description": "substring to replace; must occur exactly once. Omit to delete the whole note (target=note only)" },
                     "new_str": { "type": "string", "description": "replacement text; empty string deletes the matched substring" }
                 },
-                "required": ["target", "old_str", "new_str"]
+                "required": ["target", "new_str"]
             }),
         }
     }

@@ -441,6 +441,62 @@ fn edit_empty_new_str_removes_exactly_the_matched_substring() {
 }
 
 #[test]
+fn edit_omitted_old_str_deletes_note_file() {
+    let m = fresh("edit-del-note");
+    m.write(
+        WriteTarget::Note,
+        "body",
+        WriteMode::Overwrite,
+        Some("somestem"),
+    )
+    .unwrap();
+    let note = m.note_path("somestem").unwrap();
+    assert!(note.exists(), "note file should exist after write");
+    let msg = m
+        .edit(WriteTarget::Note, Some("somestem"), None, "")
+        .unwrap();
+    assert!(
+        msg.contains("Deleted"),
+        "message should confirm deletion: {msg}"
+    );
+    assert!(!note.exists(), "note file should be gone after delete");
+    cleanup(&m);
+}
+
+#[test]
+fn edit_omitted_old_str_rejects_non_note_targets_and_leaves_files() {
+    let m = fresh("edit-del-reject");
+    for (target, path, content) in [
+        (WriteTarget::LongTerm, memory_md(&m), "lt content\n"),
+        (WriteTarget::Scratchpad, scratchpad(&m), "sp content\n"),
+        (WriteTarget::Daily, daily(&m, &m.today), "daily content\n"),
+    ] {
+        fs::write(&path, content).unwrap();
+        assert!(
+            m.edit(target, None, None, "").is_err(),
+            "omitting old_str for non-note target must error"
+        );
+        assert_eq!(
+            fs::read_to_string(&path).unwrap(),
+            content,
+            "non-note file must be unchanged"
+        );
+    }
+    cleanup(&m);
+}
+
+#[test]
+fn edit_omitted_old_str_missing_note_errors() {
+    let m = fresh("edit-del-missing");
+    // No note written; deleting a non-existent note is a clear error.
+    assert!(
+        m.edit(WriteTarget::Note, Some("ghost"), None, "").is_err(),
+        "deleting an absent note should error"
+    );
+    cleanup(&m);
+}
+
+#[test]
 fn subagent_memory_tool_set_excludes_memory_edit() {
     use crate::extras::memory::MemoryEdit;
     use crate::extras::subagents::builder::subagent_memory_tools;

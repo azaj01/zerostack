@@ -120,7 +120,7 @@ Rules:
 
 ## Rig Tools
 
-Three tools are registered when the `memory` feature is enabled:
+Four tools are registered when the `memory` feature is enabled:
 
 ### `memory_write`
 
@@ -139,6 +139,19 @@ Three tools are registered when the `memory` feature is enabled:
 | `name` | string (opt) | Note stem or YYYY-MM-DD for daily |
 
 `source=list` enumerates all `.md` files in the store (global MEMORY.md + current project's notes + daily logs).
+
+### `memory_edit`
+
+| Parameter | Type | Description |
+|---|---|---|
+| `target` | string | `long_term`, `scratchpad`, `daily`, or `note` |
+| `name` | string (opt) | Note stem, required for `note` |
+| `old_str` | string (opt) | Substring to replace; must occur exactly once. Omit to delete a whole note |
+| `new_str` | string | Replacement text; empty string deletes the matched substring |
+
+Replaces a unique substring in a memory file in place. `old_str` is matched literally (no fuzzy matching) and must occur exactly once in the target file; zero or multiple matches fail without writing. `new_str` replaces the match verbatim with no newline cleanup, so an empty `new_str` deletes exactly the matched text, and including the trailing newline in `old_str` deletes a whole line.
+
+Omitting `old_str` deletes an entire note file (`notes/<name>.md`) from disk; this requires `target=note` with a `name`. Omitting `old_str` for `long_term`, `scratchpad`, or `daily` is rejected and changes nothing. Deleting a note that does not exist is an error.
 
 ### `memory_search`
 
