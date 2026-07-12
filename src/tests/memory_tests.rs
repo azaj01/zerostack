@@ -383,6 +383,83 @@ fn context_block_truncates_cjk_without_panic() {
     cleanup(&m);
 }
 
+// ---- edit --------------------------------------------------------------------
+
+#[test]
+fn edit_unique_match_replaces_only_that_occurrence() {
+    let m = fresh("edit-uniq");
+    fs::write(memory_md(&m), "alpha\nbeta\ngamma\n").unwrap();
+    m.edit(WriteTarget::LongTerm, None, Some("beta"), "BETA")
+        .unwrap();
+    assert_eq!(
+        fs::read_to_string(memory_md(&m)).unwrap(),
+        "alpha\nBETA\ngamma\n"
+    );
+    cleanup(&m);
+}
+
+#[test]
+fn edit_zero_matches_errors_and_leaves_file_unchanged() {
+    let m = fresh("edit-zero");
+    let before = "alpha\nbeta\n";
+    fs::write(memory_md(&m), before).unwrap();
+    assert!(
+        m.edit(WriteTarget::LongTerm, None, Some("nope"), "x")
+            .is_err()
+    );
+    assert_eq!(fs::read_to_string(memory_md(&m)).unwrap(), before);
+    cleanup(&m);
+}
+
+#[test]
+fn edit_multiple_matches_errors_with_count_and_leaves_file_unchanged() {
+    let m = fresh("edit-multi");
+    let before = "dup\ndup\ndup\n";
+    fs::write(memory_md(&m), before).unwrap();
+    let err = m
+        .edit(WriteTarget::LongTerm, None, Some("dup"), "x")
+        .unwrap_err();
+    assert!(
+        err.to_string().contains('3'),
+        "error should name the match count: {err}"
+    );
+    assert_eq!(fs::read_to_string(memory_md(&m)).unwrap(), before);
+    cleanup(&m);
+}
+
+#[test]
+fn edit_empty_new_str_removes_exactly_the_matched_substring() {
+    let m = fresh("edit-del");
+    fs::write(memory_md(&m), "keep this LINE and more\n").unwrap();
+    m.edit(WriteTarget::LongTerm, None, Some("LINE "), "")
+        .unwrap();
+    assert_eq!(
+        fs::read_to_string(memory_md(&m)).unwrap(),
+        "keep this and more\n"
+    );
+    cleanup(&m);
+}
+
+#[test]
+fn subagent_memory_tool_set_excludes_memory_edit() {
+    use crate::extras::memory::MemoryEdit;
+    use crate::extras::subagents::builder::subagent_memory_tools;
+    use rig::tool::Tool;
+    // Exercise the real production assembly of a subagent's memory tools, not a
+    // hand-copied list: build_explore_agent_inner grants exactly what this
+    // function returns, so if memory_edit (or any mutating tool) ever leaks into
+    // it, this fails.
+    let names: Vec<String> = subagent_memory_tools().iter().map(|t| t.name()).collect();
+    assert!(
+        !names.iter().any(|n| n == MemoryEdit::NAME),
+        "subagents must not receive memory_edit; got {names:?}"
+    );
+    // Sanity: the granted set is the read-only pair, and memory_edit is a real,
+    // distinct tool that is simply never added.
+    assert_eq!(names, vec!["memory_read", "memory_search"]);
+    assert_eq!(MemoryEdit::NAME, "memory_edit");
+}
+
 // ---- search -----------------------------------------------------------------
 
 #[test]

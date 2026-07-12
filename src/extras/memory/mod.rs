@@ -298,6 +298,71 @@ impl Mem {
         Ok(msg)
     }
 
+    /// Strict, unique-substring content replacement in a memory file.
+    ///
+    /// `old_str` must occur EXACTLY once in the target file (0 or >1 matches is a
+    /// hard error naming the count, with no write performed). The single match is
+    /// replaced with `new_str` via `replace_range` — a plain substring swap with
+    /// no implicit newline cleanup, so `new_str=""` removes exactly the matched
+    /// bytes and nothing more. Unlike the source-code `EditTool`, there is no
+    /// fuzzy fallback.
+    ///
+    /// The `old_str: None` branch (whole-note deletion) is not yet supported and
+    /// is implemented in a later change.
+    pub fn edit(
+        &self,
+        target: WriteTarget,
+        name: Option<&str>,
+        old_str: Option<&str>,
+        new_str: &str,
+    ) -> std::io::Result<String> {
+        tracing::debug!(
+            "memory edit: target={:?}, has_old={}",
+            target,
+            old_str.is_some(),
+        );
+        let path = match target {
+            WriteTarget::LongTerm => self.memory_md(),
+            WriteTarget::Scratchpad => self.scratchpad(),
+            WriteTarget::Daily => self.daily_file(&self.today),
+            WriteTarget::Note => match name.and_then(|n| self.note_path(n)) {
+                Some(p) => p,
+                None => {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "invalid note name (no slashes or dots)",
+                    ));
+                }
+            },
+        };
+        match old_str {
+            Some(old) => {
+                let current = fs::read_to_string(&path)?;
+                let count = current.match_indices(old).count();
+                if count != 1 {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        format!(
+                            "old_str matched {count} time(s) in {}; it must match exactly once",
+                            path.display()
+                        ),
+                    ));
+                }
+                let pos = current
+                    .find(old)
+                    .expect("match_indices count == 1 guarantees a match");
+                let mut updated = current;
+                updated.replace_range(pos..pos + old.len(), new_str);
+                atomic_write(&path, &updated)?;
+                Ok(format!("Edited {}", path.display()))
+            }
+            None => Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "memory_edit without old_str (whole-note deletion) is not yet supported",
+            )),
+        }
+    }
+
     /// Append a timestamped entry to today's daily log. Used by the
     /// pre-compaction flush so the rolling summary survives compaction
     /// deterministically, rather than at the model's discretion.
@@ -808,6 +873,84 @@ Prefer long_term for things that should always be remembered."
         };
         Mem::open()
             .write(target, &args.content, mode, args.name.as_deref())
+            .map_err(|e| ToolError::Msg(e.to_string()))
+    }
+}
+
+#[derive(Deserialize)]
+pub struct MemoryEditArgs {
+    /// "long_term" | "scratchpad" | "daily" | "note"
+    pub target: String,
+    /// required when target == "note"
+    pub name: Option<String>,
+    /// substring to replace; must occur exactly once in the target file
+    pub old_str: Option<String>,
+    /// replacement text (empty string deletes the matched substring)
+    #[serde(default)]
+    pub new_str: String,
+}
+
+pub struct MemoryEdit {
+    pub permission: Option<PermCheck>,
+    pub ask_tx: Option<AskSender>,
+}
+impl MemoryEdit {
+    pub fn new(permission: Option<PermCheck>, ask_tx: Option<AskSender>) -> Self {
+        Self { permission, ask_tx }
+    }
+}
+impl Tool for MemoryEdit {
+    const NAME: &'static str = "memory_edit";
+    type Error = ToolError;
+    type Args = MemoryEditArgs;
+    type Output = String;
+
+    async fn definition(&self, _p: String) -> ToolDefinition {
+        ToolDefinition {
+            name: Self::NAME.to_string(),
+            description: "Replace a unique substring in a memory file in place. \
+target=long_term (MEMORY.md), scratchpad, daily (today's log), or note (name=<stem>). old_str must \
+occur EXACTLY once in the target file, matched literally (no fuzzy matching); if it matches zero or \
+multiple times the edit fails and nothing is written, so include enough surrounding text to make it \
+unique. The match is replaced with new_str verbatim, with no newline cleanup: set new_str to an \
+empty string to delete the matched text, and include the trailing newline in old_str to delete a \
+whole line. Use memory_write to append or overwrite; use this to surgically fix or remove existing \
+content."
+                .to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "target":  { "type": "string", "description": "long_term, scratchpad, daily, or note" },
+                    "name":    { "type": "string", "description": "note stem, required for note" },
+                    "old_str": { "type": "string", "description": "substring to replace; must occur exactly once" },
+                    "new_str": { "type": "string", "description": "replacement text; empty string deletes the matched substring" }
+                },
+                "required": ["target", "old_str", "new_str"]
+            }),
+        }
+    }
+
+    async fn call(&self, args: MemoryEditArgs) -> Result<String, ToolError> {
+        tracing::debug!(
+            "tool memory_edit: target={}, has_old={}",
+            args.target,
+            args.old_str.is_some(),
+        );
+        check_perm(&self.permission, &self.ask_tx, Self::NAME, &args.target).await?;
+        let target = match args.target.as_str() {
+            "long_term" => WriteTarget::LongTerm,
+            "scratchpad" => WriteTarget::Scratchpad,
+            "daily" => WriteTarget::Daily,
+            "note" => WriteTarget::Note,
+            other => return Err(ToolError::Msg(format!("unknown target: {other}"))),
+        };
+        Mem::open()
+            .edit(
+                target,
+                args.name.as_deref(),
+                args.old_str.as_deref(),
+                &args.new_str,
+            )
             .map_err(|e| ToolError::Msg(e.to_string()))
     }
 }

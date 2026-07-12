@@ -79,6 +79,13 @@ are injected automatically; mark `- [x]` or rewrite with mode=overwrite when don
 - memory_write target=note name=<stem>: longer reference material kept on disk \
 and NOT auto-injected. Find it later with memory_search, then read it in full \
 with memory_read source=note name=<stem>.
+- memory_edit: replace a unique substring in a memory file in place (target=\
+long_term, scratchpad, daily, or note). old_str must occur EXACTLY once, matched \
+literally, so include enough surrounding text to make it unique; a zero- or \
+multiple-match old_str fails without writing. Set new_str to an empty string to \
+delete the matched text, and include the trailing newline in old_str to delete a \
+whole line. Use this to fix or remove existing memory; use memory_write to append \
+or overwrite.
 - memory_search: keyword search over all memory (including older daily logs not \
 injected above). Space-separated words are separate terms. It locates relevant \
 files with a little context — to use a file's full content, follow up with \
