@@ -188,10 +188,11 @@ async fn run() -> anyhow::Result<()> {
     }
 
     let version_changed = docs::ensure_global()?;
+    let is_interactive = !cli.print;
     #[cfg(feature = "acp")]
-    let is_interactive = !cli.acp_enabled && !cli.print && !cli.loop_mode;
-    #[cfg(not(feature = "acp"))]
-    let is_interactive = !cli.print && !cli.loop_mode;
+    let is_interactive = is_interactive && !cli.acp_enabled;
+    #[cfg(feature = "loop")]
+    let is_interactive = is_interactive && !cli.loop_mode;
 
     // ── Hooks: load settings.json config, apply trust, install dispatcher ──
     // Done this early (before provider/API-key resolution) so `--hooks-test`
