@@ -501,7 +501,7 @@ where
         async move {
             agent_ref
                 .stream_chat(p, Vec::<Message>::new())
-                .multi_turn(1)
+                .max_turns(1)
                 .await
         }
     })
@@ -516,7 +516,7 @@ where
                 rig::streaming::StreamedAssistantContent::Text(text),
             )) => response.push_str(&text.text),
             Ok(rig::agent::MultiTurnStreamItem::FinalResponse(res)) => {
-                response = res.response().to_string();
+                response = res.output.to_string();
                 break;
             }
             Err(e) => return Err(anyhow::anyhow!("Compression failed: {}", e)),
